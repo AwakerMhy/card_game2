@@ -47,6 +47,7 @@ export default function PlayerArea({
   onGraveyardClick,
   selectedMonsterZone,
   tributeIndices = [],
+  summonTargetZones,
   selectedSpellTrapZone,
   selectedHandCard,
   playableHandCards,
@@ -106,6 +107,7 @@ export default function PlayerArea({
       onViewDetails={onViewDetails}
       selectedZone={selectedMonsterZone}
       tributeSelection={tributeIndices}
+      summonTargetZones={summonTargetZones}
     />
     </div>
   );

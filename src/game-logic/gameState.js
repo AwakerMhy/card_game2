@@ -65,6 +65,9 @@ export function createInitialState() {
     chain: [],
     winner: null,
     attackedMonsters: { player1: [], player2: [] },
+    lightSwordActive: null,
+    borrowedMonsters: [],
+    pendingAttack: null,
   };
 }
 
@@ -98,6 +101,60 @@ export function removeFromHand(state, playerId, instanceId) {
       [playerId]: {
         ...player,
         hand: player.hand.filter((c) => c.instanceId !== instanceId),
+      },
+    },
+  };
+}
+
+// Add a card to a player's hand (e.g. monster returned from field)
+export function addCardToHand(state, playerId, card) {
+  const player = state.players[playerId];
+  const c = { ...card, instanceId: card.instanceId || crypto.randomUUID() };
+  return {
+    ...state,
+    players: {
+      ...state.players,
+      [playerId]: {
+        ...player,
+        hand: [...player.hand, c],
+      },
+    },
+  };
+}
+
+// Remove one card from hand by index; returns { newState, card }
+export function removeFromHandByIndex(state, playerId, handIndex) {
+  const player = state.players[playerId];
+  if (handIndex < 0 || handIndex >= player.hand.length) return { newState: state, card: null };
+  const card = player.hand[handIndex];
+  const newHand = player.hand.filter((_, i) => i !== handIndex);
+  return {
+    newState: {
+      ...state,
+      players: {
+        ...state.players,
+        [playerId]: { ...player, hand: newHand },
+      },
+    },
+    card,
+  };
+}
+
+// Remove first card from deck matching predicate and add to hand
+export function searchDeckAddToHand(state, playerId, predicate) {
+  const player = state.players[playerId];
+  const idx = player.deck.findIndex(predicate);
+  if (idx < 0) return state;
+  const foundCard = player.deck[idx];
+  const newDeck = player.deck.filter((_, i) => i !== idx);
+  return {
+    ...state,
+    players: {
+      ...state.players,
+      [playerId]: {
+        ...player,
+        deck: newDeck,
+        hand: [...player.hand, { ...foundCard, instanceId: foundCard.instanceId || crypto.randomUUID() }],
       },
     },
   };

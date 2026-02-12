@@ -19,12 +19,7 @@ export default function Card({
   };
 
   const handleCardClick = (e) => {
-    if (e.target.closest(".card-info-btn")) {
-      e.preventDefault();
-      e.stopPropagation();
-      onViewDetails?.(card);
-      return;
-    }
+    onViewDetails?.(card);
     onClick?.(e);
   };
 
@@ -67,15 +62,7 @@ export default function Card({
       draggable={draggable}
       onDragStart={onDragStart}
     >
-      {onViewDetails && (
-        <div
-          className="card-info-btn absolute top-0 right-0 w-4 h-4 bg-slate-600 text-white flex items-center justify-center text-[10px] font-bold rounded-bl cursor-pointer hover:bg-slate-500 z-10"
-          title="查看详情"
-        >
-          ?
-        </div>
-      )}
-      <div className="font-bold truncate px-0.5 pt-0.5 border-b border-amber-200 pr-4">
+      <div className="font-bold truncate px-0.5 pt-0.5 border-b border-amber-200">
         {card.name}
       </div>
       {isMonster && (

@@ -2,9 +2,9 @@
 
 A browser-based card game with Yu-Gi-Oh mechanics, built with React and Tailwind CSS.
 
-## ??
+## Docs
 
-- [???? (docs/PROJECT_LOG.md)](docs/PROJECT_LOG.md) - ????????????????
+- [Project Log (docs/PROJECT_LOG.md)](docs/PROJECT_LOG.md) - Project plan and change history
 
 ## Features
 
@@ -35,10 +35,10 @@ npm run build
 
 ## Play
 
-1. **Vs Human**: Uncheck "?? AI" for 2-player mode
-2. **Vs AI**: Check "?? AI" to play against computer
-3. **Phases**: Click phase buttons or "????" to advance
+1. **Vs Human**: Uncheck "Vs AI" for 2-player mode
+2. **Vs AI**: Check "Vs AI" to play against computer
+3. **Phases**: Draw and Standby auto-advance; click "Next Phase" to advance other phases
 4. **Summon**: Click monster in hand, then click empty monster zone (or drag)
-5. **Attack**: Enter battle phase, click your monster, then click opponent's monster or "????"
+5. **Attack**: Enter battle phase, click your monster, then click opponent's monster or the direct-attack button
 6. **Position**: In main phase, click your monster to toggle ATK/DEF
-7. **Spells**: Pot of Greed - click "????" when selected. Set other spells by dragging to S/T zone
+7. **Spells**: For Pot of Greed, click "Activate" when selected. Set other spells by dragging to S/T zone
