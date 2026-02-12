@@ -68,6 +68,7 @@ export function createInitialState() {
     lightSwordActive: null,
     borrowedMonsters: [],
     pendingAttack: null,
+    changedPositionThisTurn: { player1: [], player2: [] },
   };
 }
 
@@ -202,11 +203,11 @@ export function sendToGraveyard(state, playerId, card) {
   };
 }
 
-// Place card in monster zone
-export function placeMonsterZone(state, playerId, zoneIndex, card, position = "attack") {
+// Place card in monster zone (position: "attack"|"defense", faceDown for 里侧守备)
+export function placeMonsterZone(state, playerId, zoneIndex, card, position = "attack", faceDown = false) {
   const player = state.players[playerId];
   const newZones = [...player.monsterZones];
-  newZones[zoneIndex] = { ...card, position };
+  newZones[zoneIndex] = { ...card, position, faceDown: !!faceDown };
   return {
     ...state,
     players: {

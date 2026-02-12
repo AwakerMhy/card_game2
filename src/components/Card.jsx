@@ -23,10 +23,14 @@ export default function Card({
     onClick?.(e);
   };
 
+  const position = card?.position || "attack";
+  const isDefense = position === "defense";
+  const rotationClass = isDefense ? "rotate-90" : "";
+
   if (faceDown) {
     return (
       <div
-        className={`${sizeClasses[size]} bg-amber-900 border-2 border-amber-700 rounded cursor-pointer shadow-lg flex items-center justify-center select-none relative`}
+        className={`${sizeClasses[size]} ${rotationClass} bg-amber-900 border-2 border-amber-700 rounded cursor-pointer shadow-lg flex items-center justify-center select-none relative`}
         onClick={onClick}
       >
         <div className="w-8 h-12 bg-amber-800 rounded" />
@@ -39,7 +43,6 @@ export default function Card({
   const isMonster = card.type === "monster";
   const isSpell = card.type === "spell";
   const isTrap = card.type === "trap";
-  const position = card.position || "attack";
 
   const bgColor = isMonster
     ? "bg-amber-50"
@@ -55,7 +58,7 @@ export default function Card({
 
   return (
     <div
-      className={`${sizeClasses[size]} ${bgColor} ${borderColor} rounded overflow-hidden cursor-pointer shadow-lg flex flex-col select-none transition-all touch-manipulation relative ${
+      className={`${sizeClasses[size]} ${rotationClass} ${bgColor} ${borderColor} rounded overflow-hidden cursor-pointer shadow-lg flex flex-col select-none transition-all touch-manipulation relative ${
         playable ? "shadow-lg hover:scale-105" : ""
       }`}
       onClick={handleCardClick}

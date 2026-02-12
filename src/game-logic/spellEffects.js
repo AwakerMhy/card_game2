@@ -66,7 +66,7 @@ function getFirstFaceUpMonster(state, opponentId) {
   return -1;
 }
 
-export function resolveSpellEffect(state, playerId, card) {
+export function resolveSpellEffect(state, playerId, card, target) {
   const id = String(card.id || card.name || "");
   const oppId = playerId === "player1" ? "player2" : "player1";
 
@@ -76,19 +76,26 @@ export function resolveSpellEffect(state, playerId, card) {
 
     case "102": {
       const player = state.players[playerId];
-      const graveMonster = player.graveyard.find((c) => c.type === "monster");
+      let graveMonster = null;
+      let graveOwnerId = playerId;
+      if (target?.type === "graveyard" && target.instanceId) {
+        const tid = target.playerId || playerId;
+        graveMonster = state.players[tid]?.graveyard?.find((c) => c.instanceId === target.instanceId && c.type === "monster");
+        if (graveMonster) graveOwnerId = tid;
+      }
+      if (!graveMonster) {
+        graveMonster = player.graveyard.find((c) => c.type === "monster");
+      }
       if (!graveMonster) return state;
       const emptyZone = player.monsterZones.findIndex((z) => !z);
       if (emptyZone < 0) return state;
-      const newGraveyard = player.graveyard.filter((c) => c.instanceId !== graveMonster.instanceId);
+      const owner = state.players[graveOwnerId];
+      const newGraveyard = owner.graveyard.filter((c) => c.instanceId !== graveMonster.instanceId);
       let newState = {
         ...state,
         players: {
           ...state.players,
-          [playerId]: {
-            ...player,
-            graveyard: newGraveyard,
-          },
+          [graveOwnerId]: { ...owner, graveyard: newGraveyard },
         },
       };
       return placeMonsterZone(newState, playerId, emptyZone, graveMonster, "attack");
@@ -126,9 +133,13 @@ export function resolveSpellEffect(state, playerId, card) {
     }
 
     case "106": {
-      const target = getFirstSpellTrapOnField(state, playerId);
-      if (!target) return state;
-      return destroySpellTrapAt(state, target.playerId, target.zoneIndex);
+      let stTarget = null;
+      if (target?.type === "spellTrap" && target.playerId != null && target.zoneIndex != null && state.players[target.playerId]?.spellTrapZones[target.zoneIndex]) {
+        stTarget = { playerId: target.playerId, zoneIndex: target.zoneIndex };
+      }
+      if (!stTarget) stTarget = getFirstSpellTrapOnField(state, playerId);
+      if (!stTarget) return state;
+      return destroySpellTrapAt(state, stTarget.playerId, stTarget.zoneIndex);
     }
 
     case "107":
@@ -139,7 +150,11 @@ export function resolveSpellEffect(state, playerId, card) {
 
     case "109": {
       const opp = state.players[oppId];
-      const fromZone = opp.monsterZones.findIndex((z) => z !== null);
+      let fromZone = -1;
+      if (target?.type === "monster" && target.playerId === oppId && target.zoneIndex != null && opp.monsterZones[target.zoneIndex]) {
+        fromZone = target.zoneIndex;
+      }
+      if (fromZone < 0) fromZone = opp.monsterZones.findIndex((z) => z !== null);
       if (fromZone < 0) return state;
       const myEmpty = state.players[playerId].monsterZones.findIndex((z) => z === null);
       if (myEmpty < 0) return state;
@@ -158,7 +173,11 @@ export function resolveSpellEffect(state, playerId, card) {
     case "110": {
       let s = setLP(state, playerId, state.players[playerId].lp - 800);
       const player = s.players[playerId];
-      const graveMonster = player.graveyard.find((c) => c.type === "monster");
+      let graveMonster = null;
+      if (target?.type === "graveyard" && target.playerId === playerId && target.instanceId) {
+        graveMonster = player.graveyard.find((c) => c.instanceId === target.instanceId && c.type === "monster");
+      }
+      if (!graveMonster) graveMonster = player.graveyard.find((c) => c.type === "monster");
       if (!graveMonster) return s;
       const emptyZone = player.monsterZones.findIndex((z) => !z);
       if (emptyZone < 0) return s;
@@ -174,12 +193,17 @@ export function resolveSpellEffect(state, playerId, card) {
     }
 
     case "111": {
-      const zoneIndex = getFirstFaceUpMonster(state, oppId);
+      let zoneIndex = -1;
+      if (target?.type === "monster" && target.playerId === oppId && target.zoneIndex != null) {
+        const m = state.players[oppId]?.monsterZones[target.zoneIndex];
+        if (m) zoneIndex = target.zoneIndex;
+      }
+      if (zoneIndex < 0) zoneIndex = getFirstFaceUpMonster(state, oppId);
       if (zoneIndex < 0) return state;
       const player = state.players[oppId];
       const monster = player.monsterZones[zoneIndex];
       const newZones = [...player.monsterZones];
-      newZones[zoneIndex] = { ...monster, position: "defense" };
+      newZones[zoneIndex] = { ...monster, position: "defense", faceDown: true };
       return {
         ...state,
         players: {
@@ -260,4 +284,21 @@ export function canActivateFromFieldInPhase(card, phase) {
   const id = String(card.id ?? "");
   if (id === "115") return phase === "battle"; // 圣防护罩 only in battle
   return phase === "main1" || phase === "main2";
+}
+
+/** Whether this spell/trap requires the player to choose a target before resolution */
+export function needsTarget(card) {
+  if (!card) return false;
+  const id = String(card.id ?? "");
+  return ["102", "106", "109", "110", "111"].includes(id);
+}
+
+/** Target type: 'graveyard' (102 both graves, 110 own grave), 'spellTrap' (106), 'opponentMonster' (109, 111) */
+export function getSpellTargetType(card) {
+  if (!card) return null;
+  const id = String(card.id ?? "");
+  if (id === "102" || id === "110") return "graveyard";
+  if (id === "106") return "spellTrap";
+  if (id === "109" || id === "111") return "opponentMonster";
+  return null;
 }

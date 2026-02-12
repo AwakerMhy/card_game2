@@ -19,6 +19,7 @@ export default function MonsterZone({ zones, onZoneClick, onZoneDrop, onViewDeta
           {zone ? (
             <Card
               card={zone}
+              faceDown={zone.faceDown}
               size="md"
               selected={selectedZone === index || tributeSelection?.includes(index)}
               onClick={() => onZoneClick && onZoneClick(index)}

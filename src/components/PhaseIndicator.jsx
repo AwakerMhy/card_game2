@@ -7,10 +7,11 @@ export const PHASES = [
   { id: "end", label: "结束", short: "EP" },
 ];
 
-export default function PhaseIndicator({ currentPhase, onNextPhase }) {
+export default function PhaseIndicator({ currentPhase, onNextPhase, isMyTurn = true }) {
   const currentIndex = PHASES.findIndex((p) => p.id === currentPhase);
   const canAdvance = currentIndex >= 0 && currentIndex < PHASES.length - 1;
   const isAutoPhase = currentPhase === "draw" || currentPhase === "standby";
+  const currentPhaseHighlight = isMyTurn ? "bg-blue-500 text-white" : "bg-red-500 text-white";
 
   return (
     <div className="flex gap-1 items-center px-2 py-1 bg-slate-800 rounded-lg">
@@ -19,9 +20,7 @@ export default function PhaseIndicator({ currentPhase, onNextPhase }) {
           <div
             key={phase.id}
             className={`px-2 py-0.5 rounded text-xs font-medium cursor-default ${
-              currentPhase === phase.id
-                ? "bg-amber-500 text-slate-900"
-                : "bg-slate-700 text-slate-400"
+              currentPhase === phase.id ? currentPhaseHighlight : "bg-slate-700 text-slate-400"
             }`}
             title={phase.label}
           >
