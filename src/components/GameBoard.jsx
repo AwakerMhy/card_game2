@@ -1,5 +1,5 @@
 import { useReducer, useCallback, useState, useEffect } from "react";
-import PlayerArea from "./PlayerArea.jsx";
+import PlayerArea, { DeckGraveyardRow } from "./PlayerArea.jsx";
 import PhaseIndicator, { PHASES } from "./PhaseIndicator.jsx";
 import DamageDisplay from "./DamageDisplay.jsx";
 import CardDetailModal from "./CardDetailModal.jsx";
@@ -213,22 +213,44 @@ export default function GameBoard() {
     }
   }, [state.lastDamage]);
 
+  // 抽牌阶段：自动抽牌并进入准备阶段
+  useEffect(() => {
+    if (state.winner || state.currentPhase !== "draw") return;
+    const timer = setTimeout(() => {
+      const shouldDraw = !(state.turnCount === 1 && state.currentTurn === 1);
+      if (shouldDraw) {
+        playDraw();
+        dispatch({ type: "DRAW", playerId: currentPlayerId });
+        addLog?.(`玩家 ${state.currentTurn} 抽牌`, "player");
+      }
+      playPhase();
+      addLog?.("进入准备阶段", "player");
+      dispatch({ type: "SET_PHASE", phase: "standby" });
+    }, 400);
+    return () => clearTimeout(timer);
+  }, [state.currentPhase, state.turnCount, state.currentTurn, state.winner, currentPlayerId, addLog]);
+
+  // 准备阶段：处理完效果后自动进入主阶段1
+  useEffect(() => {
+    if (state.winner || state.currentPhase !== "standby") return;
+    const timer = setTimeout(() => {
+      playPhase();
+      addLog?.("进入主阶段1", "player");
+      dispatch({ type: "SET_PHASE", phase: "main1" });
+    }, 600);
+    return () => clearTimeout(timer);
+  }, [state.currentPhase, state.winner, addLog]);
+
   // AI turn
   useEffect(() => {
     if (!vsAI || state.winner || state.currentTurn !== 2) return;
     const timer = setTimeout(() => {
       const action = getAIAction(state);
+      // 抽牌与准备阶段由上方 useEffect 自动处理，AI 仅处理 main1/battle/main2/end
       if (action.type === "DRAW_PHASE") {
-        const shouldDraw = !(state.turnCount === 1 && state.currentTurn === 1);
-        if (state.currentPhase === "draw" && shouldDraw) {
-          playDraw();
-          addLog("AI 抽牌", "ai");
-          dispatch({ type: "DRAW", playerId: "player2" });
-        }
-        playPhase();
-        addLog("AI 进入准备阶段", "ai");
-        dispatch({ type: "SET_PHASE", phase: "standby" });
-      } else if (action.type === "SUMMON") {
+        return;
+      }
+      if (action.type === "SUMMON") {
         playSummon();
         addLog(`AI 召唤 ${action.card?.name}`, "ai");
         dispatch(action);
@@ -276,7 +298,7 @@ export default function GameBoard() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-900 p-4 flex flex-col relative">
+    <div className="h-screen bg-slate-900 p-1 flex flex-col relative overflow-hidden">
       {state.lastDamage && state.lastDamageTarget && (
         <DamageDisplay
           amount={state.lastDamage}
@@ -286,18 +308,23 @@ export default function GameBoard() {
           }
         />
       )}
-      <div className="flex justify-center mb-4">
+      <div className="absolute left-2 top-1/2 -translate-y-1/2 z-10 flex flex-col gap-2">
         <PhaseIndicator
           currentPhase={state.currentPhase}
           onNextPhase={handleNextPhase}
         />
-      </div>
-
-      <div className="flex justify-between mb-2 items-center">
-        <span className="text-slate-400">
-          回合 {state.turnCount} - {state.currentTurn === 1 ? "玩家 1" : vsAI ? "AI" : "玩家 2"} 的回合
-        </span>
-        <label className="flex items-center gap-2 text-slate-400 cursor-pointer">
+        <div className="flex items-center gap-1.5">
+          <span className="text-slate-400 text-sm">
+            回合 {state.turnCount} - {state.currentTurn === 1 ? "玩家 1" : vsAI ? "AI" : "玩家 2"} 的回合
+          </span>
+          <button
+            className="px-2 py-1 bg-slate-600 text-white rounded hover:bg-slate-500 text-sm shrink-0"
+            onClick={handleEndTurn}
+          >
+            结束回合
+          </button>
+        </div>
+        <label className="flex items-center gap-2 text-slate-400 cursor-pointer text-sm">
           <input
             type="checkbox"
             checked={vsAI}
@@ -306,14 +333,6 @@ export default function GameBoard() {
           />
           <span>对战 AI</span>
         </label>
-        <div className="flex gap-2">
-          <button
-            className="px-4 py-2 bg-slate-600 text-white rounded hover:bg-slate-500"
-            onClick={handleEndTurn}
-          >
-            结束回合
-          </button>
-        </div>
       </div>
 
       <ActionLog entries={actionLog} />
@@ -567,7 +586,7 @@ function GameBoardInner({
   };
 
   return (
-    <div className="flex-1 flex flex-col gap-4">
+    <div className="flex-1 flex flex-col gap-1 min-h-0 overflow-hidden">
       {viewingCard && (
         <CardDetailModal
           card={viewingCard}
@@ -588,6 +607,7 @@ function GameBoardInner({
                 playerId: viewingCard.playerId,
                 zoneIndex: viewingCard.zoneIndex,
               });
+              setViewingCard(null);
             }
           }}
         />
@@ -600,29 +620,45 @@ function GameBoardInner({
           onViewCard={(card) => setViewingCard(card)}
         />
       )}
-      <PlayerArea
-        player={opponent}
-        isOpponent={true}
-        monsterZones={opponent.monsterZones}
-        spellTrapZones={opponent.spellTrapZones}
-        hand={opponent.hand}
-        onMonsterZoneClick={handleOpponentMonsterZoneClick}
-        onViewDetails={handleViewDetails}
-        onGraveyardClick={() => handleGraveyardClick(opponentId)}
-        onDirectAttackClick={
-          attackMode &&
-          attackingZone !== null &&
-          !opponent.monsterZones.some((m) => m && m.position === "attack")
-            ? directAttack
-            : undefined
-        }
-      />
+      <div className="relative flex-1 flex flex-col gap-1 min-h-0 overflow-hidden">
+        <div className="absolute top-0 right-4 z-10 flex flex-col gap-1 items-end">
+          <div
+            className={`px-4 py-2 bg-slate-800 rounded-lg ${
+              attackMode && attackingZone !== null && !opponent.monsterZones.some((m) => m && m.position === "attack")
+                ? "cursor-pointer hover:bg-slate-700 ring-2 ring-amber-500"
+                : ""
+            }`}
+            onClick={
+              attackMode && attackingZone !== null && !opponent.monsterZones.some((m) => m && m.position === "attack")
+                ? directAttack
+                : undefined
+            }
+          >
+            <span className="font-bold text-amber-400">{opponentId === "player2" && vsAI ? "AI" : opponentId === "player1" ? "玩家 1" : "玩家 2"}</span>
+            <span className="ml-2 text-xl font-bold text-red-500">{opponent.lp}</span>
+          </div>
+          <DeckGraveyardRow player={opponent} onGraveyardClick={() => handleGraveyardClick(opponentId)} compact />
+        </div>
 
-      <div className="border-2 border-amber-600 rounded-lg py-2 text-center text-amber-500 font-bold">
-        --- 战线 ---
-      </div>
+        <PlayerArea
+          player={opponent}
+          isOpponent={true}
+          monsterZones={opponent.monsterZones}
+          spellTrapZones={opponent.spellTrapZones}
+          hand={opponent.hand}
+          onMonsterZoneClick={handleOpponentMonsterZoneClick}
+          onViewDetails={handleViewDetails}
+          onGraveyardClick={() => handleGraveyardClick(opponentId)}
+          onDirectAttackClick={
+            attackMode &&
+            attackingZone !== null &&
+            !opponent.monsterZones.some((m) => m && m.position === "attack")
+              ? directAttack
+              : undefined
+          }
+        />
 
-      <PlayerArea
+        <PlayerArea
         player={currentPlayer}
         isOpponent={false}
         monsterZones={currentPlayer.monsterZones}
@@ -644,6 +680,15 @@ function GameBoardInner({
         onMonsterZoneDrop={handleMonsterZoneDrop}
         onSpellTrapZoneDrop={handleSpellTrapZoneDrop}
       />
+
+        <div className="absolute bottom-0 left-4 z-10 flex flex-col gap-1 items-start">
+          <DeckGraveyardRow player={currentPlayer} onGraveyardClick={() => handleGraveyardClick(currentPlayerId)} compact />
+          <div className="px-4 py-2 bg-slate-800 rounded-lg">
+            <span className="font-bold text-amber-400">{currentPlayerId === "player1" ? "你" : vsAI ? "AI" : "玩家 2"}</span>
+            <span className="ml-2 text-xl font-bold text-red-500">{currentPlayer.lp}</span>
+          </div>
+        </div>
+      </div>
 
       {tributeCount > 0 && selectedHandCard?.type === "monster" && (
         <div className="fixed bottom-20 left-1/2 -translate-x-1/2 bg-amber-800 px-4 py-2 rounded-lg">

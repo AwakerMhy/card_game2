@@ -327,6 +327,38 @@ src/
 
 ---
 
+### 改动 12：布局与阶段自动化（v0.5.0）
+
+**日期**：2025-02-12
+
+**布局与 UI**
+- 盖放魔法卡在主阶段满足条件时可发动（详情弹窗「发动」、`ACTIVATE_SPELL_FROM_FIELD`）
+- 移除「战线」显示；血条：己方左下角、对方右上角（可点击直接攻击）
+- 对称布局：对方从上到下 手卡→魔陷→怪兽，己方 怪兽→魔陷→手卡；魔陷区与怪兽区尺寸统一（w-[72px] h-[120px]）
+- 卡组、墓地移至血条旁：己方在血条上方，对方在血条下方；导出 `DeckGraveyardRow` 供 GameBoard 使用
+- 双方场地间隙缩小（gap-3→gap-1）；怪兽区固定高度、不压缩，保证卡牌显示完全
+- 手卡与怪兽区对齐，使用与场地一致的 md 卡牌尺寸；整体卡牌略放大（md: 68×108px，区格 72×120px）
+- 删除「Yu-Gi-Oh 卡牌游戏」标题（App.jsx）；阶段指示、回合数、AI 勾选、结束回合按钮全部移至屏幕左侧中间；结束回合按钮紧靠回合数右侧
+- 魔法卡背景绿色加深（bg-emerald-100）
+
+**阶段自动化**
+- 抽牌阶段：进入后约 400ms 自动执行抽牌（如需）并进入准备阶段
+- 准备阶段：进入后约 600ms 自动进入主阶段 1
+- 抽牌、准备阶段隐藏「下一阶段」按钮；AI 回合的抽牌/准备由同一自动流程处理，AI 仅处理 main1/battle/main2/end
+
+**涉及文件**
+- `src/App.jsx`
+- `src/components/GameBoard.jsx`
+- `src/components/PlayerArea.jsx`
+- `src/components/PhaseIndicator.jsx`
+- `src/components/Card.jsx`
+- `src/components/CardDetailModal.jsx`
+- `src/components/MonsterZone.jsx`
+- `src/components/SpellTrapZone.jsx`
+- `src/components/HandDisplay.jsx`
+
+---
+
 ## 四、文件变更总览
 
 | 文件 | 说明 |
@@ -350,3 +382,4 @@ src/
 | 0.2.0 | 2025-02-12 | 卡牌中文化、详情弹窗、墓地查看、阶段仅显示 |
 | 0.3.0 | 2025-02-12 | 怪兽每回合仅攻击一次、盖牌可查看、音效 |
 | 0.4.0 | 2025-02-12 | 单元测试、魔法卡从手牌/场地发动、AI 操作变慢、操作日志 |
+| 0.5.0 | 2025-02-12 | 布局重构（血条/卡组墓地/对称区格）、左侧控制区、卡牌放大、抽牌/准备阶段自动推进 |

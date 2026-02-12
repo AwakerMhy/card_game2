@@ -13,8 +13,8 @@ export default function Card({
   onDragStart,
 }) {
   const sizeClasses = {
-    sm: "w-12 h-[68px] text-[6px]",
-    md: "w-16 h-[88px] text-[8px]",
+    sm: "w-[52px] h-[72px] text-[6px]",
+    md: "w-[68px] h-[108px] text-[8px]",
     lg: "w-24 h-[132px] text-xs",
   };
 
@@ -49,7 +49,7 @@ export default function Card({
   const bgColor = isMonster
     ? "bg-amber-50"
     : isSpell
-    ? "bg-emerald-50"
+    ? "bg-emerald-100"
     : "bg-rose-50";
 
   const borderColor = selected

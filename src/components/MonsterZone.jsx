@@ -2,11 +2,11 @@ import Card from "./Card.jsx";
 
 export default function MonsterZone({ zones, onZoneClick, onZoneDrop, onViewDetails, selectedZone, playable, tributeSelection }) {
   return (
-    <div className="flex gap-1 justify-center">
+    <div className="flex gap-0.5 justify-center">
       {zones.map((zone, index) => (
         <div
           key={index}
-          className="w-20 h-28 border-2 border-dashed border-amber-600 rounded bg-amber-900/20 flex items-center justify-center min-h-[112px]"
+          className="w-[72px] h-[120px] min-h-[120px] border-2 border-dashed border-amber-600 rounded bg-amber-900/20 flex items-center justify-center overflow-visible"
           onClick={() => onZoneClick && onZoneClick(index)}
           onDragOver={(e) => e.preventDefault()}
           onDrop={(e) => onZoneDrop && onZoneDrop(e, index)}

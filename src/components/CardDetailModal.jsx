@@ -19,7 +19,7 @@ export default function CardDetailModal({ card, onClose, onActivate, canActivate
   const isMonster = actualCard.type === "monster";
   const isSpell = actualCard.type === "spell";
   const isTrap = actualCard.type === "trap";
-  const bgColor = isMonster ? "bg-amber-50" : isSpell ? "bg-emerald-50" : "bg-rose-50";
+  const bgColor = isMonster ? "bg-amber-50" : isSpell ? "bg-emerald-100" : "bg-rose-50";
   const c = actualCard;
 
   return (

@@ -7,14 +7,15 @@ export default function HandDisplay({
   playableCards = [],
   selectedCard,
   onDragStart,
+  compact = false,
 }) {
   return (
-    <div className="flex gap-2 justify-center items-end min-h-[100px] py-2">
+    <div className="flex gap-0.5 justify-center items-end min-h-[108px] py-0.5 overflow-x-auto">
       {cards.map((card) => (
         <Card
           key={card.instanceId}
           card={card}
-          size="md"
+          size={compact ? "sm" : "md"}
           onClick={() => onCardClick && onCardClick(card)}
           onViewDetails={onViewDetails}
           selected={selectedCard?.instanceId === card.instanceId}
