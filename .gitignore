@@ -1,0 +1,29 @@
+# Cursor
+.cursor/
+.cursorignore
+*.cursor*
+
+# Dependencies
+node_modules/
+
+# Build
+dist/
+build/
+
+# Env & secrets
+.env
+.env.local
+.env.*.local
+
+# Logs & cache
+*.log
+npm-debug.log*
+.cache/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Editor / IDE (optional, keep if you want)
+# .idea/
+# .vscode/
