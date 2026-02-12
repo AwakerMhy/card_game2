@@ -42,8 +42,9 @@ export function getAIAction(state) {
 
   // Battle phase - try to attack
   if (state.currentPhase === "battle") {
+    const attacked = state.attackedMonsters?.[aiPlayerId] || [];
     const atkMonsters = ai.monsterZones
-      .map((z, i) => (z && z.position === "attack" ? { zone: i, card: z } : null))
+      .map((z, i) => (z && z.position === "attack" && !attacked.includes(i) ? { zone: i, card: z } : null))
       .filter(Boolean);
     const humanAtkMonsters = human.monsterZones
       .map((z, i) => (z && z.position === "attack" ? { zone: i, card: z } : null))

@@ -20,6 +20,7 @@ import { canNormalSummon, getTributeCount } from "../game-logic/summonValidator.
 import { calculateBattle } from "../game-logic/battleCalculator.js";
 import { resolveSpellEffect, hasSpellEffect } from "../game-logic/spellEffects.js";
 import { getAIAction } from "../game-logic/aiOpponent.js";
+import { playDraw, playSummon, playAttack, playDamage, playSet, playPhase } from "../utils/sounds.js";
 
 const initialState = createInitialState();
 
@@ -106,10 +107,15 @@ function gameReducer(state, action) {
       }
       const damageAmount = result.defenderDamage || result.attackerDamage;
       const damageTarget = result.defenderDamage > 0 ? defenderPlayerId : result.attackerDamage > 0 ? attackerPlayerId : null;
+      const attacked = [...(state.attackedMonsters[attackerPlayerId] || []), attackerZoneIndex];
       return {
         ...newState,
         lastDamage: damageAmount,
         lastDamageTarget: damageTarget,
+        attackedMonsters: {
+          ...newState.attackedMonsters,
+          [attackerPlayerId]: attacked,
+        },
       };
     }
     case "CLEAR_DAMAGE":
@@ -140,6 +146,7 @@ function gameReducer(state, action) {
         currentPhase: "draw",
         canNormalSummon: true,
         turnCount: state.currentTurn === 2 ? state.turnCount + 1 : state.turnCount,
+        attackedMonsters: { player1: [], player2: [] },
       };
     case "RESET":
       return createInitialState();
@@ -162,9 +169,13 @@ export default function GameBoard() {
     if (idx < 0) return;
     if (state.currentPhase === "draw") {
       const shouldDraw = !(state.turnCount === 1 && state.currentTurn === 1);
-      if (shouldDraw) dispatch({ type: "DRAW", playerId: currentPlayerId });
+      if (shouldDraw) {
+        playDraw();
+        dispatch({ type: "DRAW", playerId: currentPlayerId });
+      }
     }
     if (idx < PHASES.length - 1) {
+      playPhase();
       dispatch({ type: "SET_PHASE", phase: PHASES[idx + 1].id });
     }
   }, [state.currentPhase, state.turnCount, state.currentTurn, currentPlayerId]);
@@ -175,6 +186,7 @@ export default function GameBoard() {
 
   useEffect(() => {
     if (state.lastDamage) {
+      playDamage();
       const t = setTimeout(() => dispatch({ type: "CLEAR_DAMAGE" }), 1200);
       return () => clearTimeout(t);
     }
@@ -188,16 +200,21 @@ export default function GameBoard() {
       if (action.type === "DRAW_PHASE") {
         const shouldDraw = !(state.turnCount === 1 && state.currentTurn === 1);
         if (state.currentPhase === "draw" && shouldDraw) {
+          playDraw();
           dispatch({ type: "DRAW", playerId: "player2" });
         }
+        playPhase();
         dispatch({ type: "SET_PHASE", phase: "standby" });
       } else if (action.type === "SUMMON") {
+        playSummon();
         dispatch(action);
       } else if (action.type === "BATTLE") {
+        playAttack();
         dispatch(action);
       } else if (action.type === "NEXT_PHASE") {
         const idx = PHASES.findIndex((p) => p.id === state.currentPhase);
         if (idx >= 0 && idx < PHASES.length - 1) {
+          playPhase();
           dispatch({ type: "SET_PHASE", phase: PHASES[idx + 1].id });
         } else if (state.currentPhase === "end") {
           dispatch({ type: "END_TURN" });
@@ -316,6 +333,7 @@ function GameBoardInner({
     if (card.type === "monster" && canNormalSummon(state, currentPlayerId, card)) {
       const count = getTributeCount(card.level);
       if (count === 0 && emptyMonsterIndex >= 0) {
+        playSummon();
         dispatch({
           type: "SUMMON",
           playerId: currentPlayerId,
@@ -337,8 +355,14 @@ function GameBoardInner({
   const handleSpellTrapZoneClick = (index) => {
     if (attackMode) return;
     const zone = currentPlayer.spellTrapZones[index];
-    if (zone) return; // Can't place on occupied zone
+    if (zone) {
+      if (zone.faceDown) {
+        setViewingCard(zone);
+      }
+      return;
+    }
     if (selectedHandCard && (selectedHandCard.type === "spell" || selectedHandCard.type === "trap")) {
+      playSet();
       dispatch({
         type: "SET_SPELL_TRAP",
         playerId: currentPlayerId,
@@ -363,6 +387,7 @@ function GameBoardInner({
     if (!draggedCard || attackMode) return;
     if (draggedCard.type === "monster" && canNormalSummon(state, currentPlayerId, draggedCard)) {
       if (getTributeCount(draggedCard.level) === 0 && currentPlayer.monsterZones[zoneIndex] === null) {
+        playSummon();
         dispatch({
           type: "SUMMON",
           playerId: currentPlayerId,
@@ -378,6 +403,7 @@ function GameBoardInner({
     e.preventDefault();
     if (!draggedCard || currentPlayer.spellTrapZones[zoneIndex]) return;
     if (draggedCard.type === "spell" || draggedCard.type === "trap") {
+      playSet();
       dispatch({
         type: "SET_SPELL_TRAP",
         playerId: currentPlayerId,
@@ -422,6 +448,7 @@ function GameBoardInner({
           : [...tributeIndices, index].slice(0, tributeCount);
         setTributeIndices(newTributes);
         if (newTributes.length === tributeCount) {
+          playSummon();
           dispatch({
             type: "SUMMON",
             playerId: currentPlayerId,
@@ -437,11 +464,13 @@ function GameBoardInner({
     }
     if (state.currentPhase === "battle") {
       const monster = currentPlayer.monsterZones[index];
-      if (monster && monster.position === "attack") {
+      const hasAttacked = state.attackedMonsters?.[currentPlayerId]?.includes(index);
+      if (monster && monster.position === "attack" && !hasAttacked) {
         setAttackMode(true);
         setAttackingZone(index);
       }
     } else if (selectedHandCard?.type === "monster" && tributeCount === 0 && emptyMonsterIndex === index) {
+      playSummon();
       dispatch({
         type: "SUMMON",
         playerId: currentPlayerId,
@@ -457,6 +486,7 @@ function GameBoardInner({
       const myMonster = currentPlayer.monsterZones[attackingZone];
       const oppMonster = opponent.monsterZones[index];
       if (myMonster && myMonster.position === "attack") {
+        playAttack();
         dispatch({
           type: "BATTLE",
           attackerPlayerId: currentPlayerId,
@@ -477,6 +507,7 @@ function GameBoardInner({
     if (attackMode && attackingZone !== null) {
       const hasAtk = opponent.monsterZones.some((m) => m && m.position === "attack");
       if (!hasAtk) {
+        playAttack();
         dispatch({
           type: "BATTLE",
           attackerPlayerId: currentPlayerId,

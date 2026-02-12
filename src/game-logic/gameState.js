@@ -64,6 +64,7 @@ export function createInitialState() {
     canNormalSummon: true,
     chain: [],
     winner: null,
+    attackedMonsters: { player1: [], player2: [] },
   };
 }
 
