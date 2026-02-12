@@ -1,6 +1,6 @@
 import Card from "./Card.jsx";
 
-export default function MonsterZone({ zones, onZoneClick, onZoneDrop, selectedZone, playable, tributeSelection }) {
+export default function MonsterZone({ zones, onZoneClick, onZoneDrop, onViewDetails, selectedZone, playable, tributeSelection }) {
   return (
     <div className="flex gap-1 justify-center">
       {zones.map((zone, index) => (
@@ -17,9 +17,10 @@ export default function MonsterZone({ zones, onZoneClick, onZoneDrop, selectedZo
               size="md"
               selected={selectedZone === index || tributeSelection?.includes(index)}
               onClick={() => onZoneClick && onZoneClick(index)}
+              onViewDetails={onViewDetails}
             />
           ) : (
-            <span className="text-amber-600/50 text-xs">Monster</span>
+            <span className="text-amber-600/50 text-xs">怪兽</span>
           )}
         </div>
       ))}

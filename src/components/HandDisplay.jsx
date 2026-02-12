@@ -3,6 +3,7 @@ import Card from "./Card.jsx";
 export default function HandDisplay({
   cards,
   onCardClick,
+  onViewDetails,
   playableCards = [],
   selectedCard,
   onDragStart,
@@ -15,6 +16,7 @@ export default function HandDisplay({
           card={card}
           size="md"
           onClick={() => onCardClick && onCardClick(card)}
+          onViewDetails={onViewDetails}
           selected={selectedCard?.instanceId === card.instanceId}
           playable={playableCards.some((c) => c?.instanceId === card.instanceId)}
           draggable={playableCards.some((c) => c?.instanceId === card.instanceId)}

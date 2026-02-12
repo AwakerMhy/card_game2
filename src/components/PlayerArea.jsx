@@ -17,6 +17,8 @@ export default function PlayerArea({
   onDragStart,
   onMonsterZoneDrop,
   onSpellTrapZoneDrop,
+  onViewDetails,
+  onGraveyardClick,
   selectedMonsterZone,
   tributeIndices = [],
   selectedSpellTrapZone,
@@ -46,7 +48,10 @@ export default function PlayerArea({
         </div>
         <div className="text-center">
           <div className="text-xs text-slate-400 mb-1">墓地</div>
-          <div className="w-12 h-16 bg-slate-700 border-2 border-slate-500 rounded flex items-center justify-center">
+          <div
+            className={`w-12 h-16 bg-slate-700 border-2 border-slate-500 rounded flex items-center justify-center cursor-pointer hover:bg-slate-600 ${onGraveyardClick ? "" : ""}`}
+            onClick={onGraveyardClick}
+          >
             <span className="text-slate-300 font-bold">{player.graveyard.length}</span>
           </div>
         </div>
@@ -56,6 +61,7 @@ export default function PlayerArea({
         zones={spellTrapZones}
         onZoneClick={onSpellTrapZoneClick}
         onZoneDrop={onSpellTrapZoneDrop}
+        onViewDetails={onViewDetails}
         selectedZone={selectedSpellTrapZone}
       />
 
@@ -63,6 +69,7 @@ export default function PlayerArea({
         zones={monsterZones}
         onZoneClick={onMonsterZoneClick}
         onZoneDrop={onMonsterZoneDrop}
+        onViewDetails={onViewDetails}
         selectedZone={selectedMonsterZone}
         tributeSelection={tributeIndices}
       />
@@ -80,6 +87,7 @@ export default function PlayerArea({
           <HandDisplay
             cards={hand}
             onCardClick={onHandCardClick}
+            onViewDetails={onViewDetails}
             playableCards={playableHandCards}
             selectedCard={selectedHandCard}
             onDragStart={onDragStart}

@@ -7,7 +7,7 @@ export const PHASES = [
   { id: "end", label: "结束", short: "EP" },
 ];
 
-export default function PhaseIndicator({ currentPhase, onPhaseChange, onNextPhase }) {
+export default function PhaseIndicator({ currentPhase, onNextPhase }) {
   const currentIndex = PHASES.findIndex((p) => p.id === currentPhase);
   const canAdvance = currentIndex >= 0 && currentIndex < PHASES.length - 1;
 
@@ -15,18 +15,17 @@ export default function PhaseIndicator({ currentPhase, onPhaseChange, onNextPhas
     <div className="flex gap-2 items-center p-2 bg-slate-800 rounded-lg">
       <div className="flex gap-1">
         {PHASES.map((phase) => (
-          <button
+          <div
             key={phase.id}
-            className={`px-3 py-1 rounded text-sm font-medium transition-colors ${
+            className={`px-3 py-1 rounded text-sm font-medium cursor-default ${
               currentPhase === phase.id
                 ? "bg-amber-500 text-slate-900"
-                : "bg-slate-700 text-slate-300 hover:bg-slate-600"
+                : "bg-slate-700 text-slate-400"
             }`}
-            onClick={() => onPhaseChange && onPhaseChange(phase.id)}
             title={phase.label}
           >
             {phase.short}
-          </button>
+          </div>
         ))}
       </div>
       {canAdvance && onNextPhase && (

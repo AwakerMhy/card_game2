@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { getAttributeDisplay, getRaceDisplay } from "../utils/cardDisplay.js";
 
 export default function Card({
   card,
@@ -6,31 +6,33 @@ export default function Card({
   size = "md",
   onClick,
   onContextMenu,
+  onViewDetails,
   selected = false,
   playable = false,
   draggable = false,
   onDragStart,
 }) {
-  const [showDetails, setShowDetails] = useState(false);
-
   const sizeClasses = {
     sm: "w-12 h-[68px] text-[6px]",
     md: "w-16 h-[88px] text-[8px]",
     lg: "w-24 h-[132px] text-xs",
   };
 
-  const handleContextMenu = (e) => {
-    e.preventDefault();
-    if (onContextMenu) onContextMenu(e);
-    else setShowDetails((d) => !d);
+  const handleCardClick = (e) => {
+    if (e.target.closest(".card-info-btn")) {
+      e.preventDefault();
+      e.stopPropagation();
+      onViewDetails?.(card);
+      return;
+    }
+    onClick?.(e);
   };
 
   if (faceDown) {
     return (
       <div
-        className={`${sizeClasses[size]} bg-amber-900 border-2 border-amber-700 rounded cursor-pointer shadow-lg flex items-center justify-center select-none`}
+        className={`${sizeClasses[size]} bg-amber-900 border-2 border-amber-700 rounded cursor-pointer shadow-lg flex items-center justify-center select-none relative`}
         onClick={onClick}
-        onContextMenu={handleContextMenu}
       >
         <div className="w-8 h-12 bg-amber-800 rounded" />
       </div>
@@ -58,39 +60,40 @@ export default function Card({
 
   return (
     <div
-      className={`${sizeClasses[size]} ${bgColor} ${borderColor} rounded overflow-hidden cursor-pointer shadow-lg flex flex-col select-none transition-all touch-manipulation ${
+      className={`${sizeClasses[size]} ${bgColor} ${borderColor} rounded overflow-hidden cursor-pointer shadow-lg flex flex-col select-none transition-all touch-manipulation relative ${
         playable ? "shadow-lg hover:scale-105" : ""
       }`}
-      onClick={onClick}
-      onContextMenu={handleContextMenu}
-      title={position === "defense" ? "DEF" : "ATK"}
+      onClick={handleCardClick}
       draggable={draggable}
       onDragStart={onDragStart}
     >
-      <div className="font-bold truncate px-0.5 pt-0.5 border-b border-amber-200">
+      {onViewDetails && (
+        <div
+          className="card-info-btn absolute top-0 right-0 w-4 h-4 bg-slate-600 text-white flex items-center justify-center text-[10px] font-bold rounded-bl cursor-pointer hover:bg-slate-500 z-10"
+          title="查看详情"
+        >
+          ?
+        </div>
+      )}
+      <div className="font-bold truncate px-0.5 pt-0.5 border-b border-amber-200 pr-4">
         {card.name}
       </div>
       {isMonster && (
         <div className="flex-1 p-0.5 space-y-0.5">
           <div className="flex justify-between">
-            <span>{card.attribute}</span>
+            <span>{getAttributeDisplay(card.attribute)}</span>
             <span>Lv{card.level}</span>
           </div>
-          <div className="text-[6px] truncate">{card.race}</div>
+          <div className="text-[6px] truncate">{getRaceDisplay(card.race)}</div>
           <div className="flex justify-between font-bold">
-            <span>ATK {card.atk}</span>
-            <span>DEF {card.def}</span>
+            <span>攻{card.atk}</span>
+            <span>守{card.def}</span>
           </div>
         </div>
       )}
       {(isSpell || isTrap) && (
-        <div className="flex-1 p-0.5 overflow-hidden text-[6px] line-clamp-3">
-          {card.effect}
-        </div>
-      )}
-      {(showDetails || (card.effect && isMonster)) && card.effect && (
-        <div className="absolute bottom-0 left-0 right-0 bg-black/80 text-white p-1 text-[6px] rounded z-10">
-          {card.effect}
+        <div className="flex-1 p-0.5 flex items-center justify-center">
+          <span className="text-[6px] text-slate-500">{card.type === "spell" ? "魔法" : "陷阱"}</span>
         </div>
       )}
     </div>

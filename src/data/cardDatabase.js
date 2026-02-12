@@ -1,10 +1,10 @@
-// Card database - minimum 30 cards (10 monsters + 10 spells for starter decks, plus extras)
+// 卡牌数据库 - 至少30张卡牌
 
 export const CARD_DATABASE = [
-  // Monsters (001-020)
+  // 怪兽卡 (001-020)
   {
     id: "001",
-    name: "Blue-Eyes White Dragon",
+    name: "青眼白龙",
     type: "monster",
     monsterType: "normal",
     level: 8,
@@ -15,7 +15,7 @@ export const CARD_DATABASE = [
   },
   {
     id: "002",
-    name: "Magician of Dark Illusion",
+    name: "暗黑幻觉师",
     type: "monster",
     monsterType: "effect",
     level: 7,
@@ -23,11 +23,11 @@ export const CARD_DATABASE = [
     def: 2500,
     attribute: "DARK",
     race: "Spellcaster",
-    effect: "When this card is Normal Summoned: You can add 1 Spell/Trap from your Deck to your hand.",
+    effect: "此卡通常召唤成功时：可以从卡组把1张魔法·陷阱卡加入手牌。",
   },
   {
     id: "003",
-    name: "Dark Magician",
+    name: "黑魔导",
     type: "monster",
     monsterType: "normal",
     level: 7,
@@ -38,7 +38,7 @@ export const CARD_DATABASE = [
   },
   {
     id: "004",
-    name: "Red-Eyes Black Dragon",
+    name: "真红眼黑龙",
     type: "monster",
     monsterType: "normal",
     level: 7,
@@ -49,7 +49,7 @@ export const CARD_DATABASE = [
   },
   {
     id: "005",
-    name: "Celtic Guardian",
+    name: "凯尔特守卫",
     type: "monster",
     monsterType: "normal",
     level: 4,
@@ -60,7 +60,7 @@ export const CARD_DATABASE = [
   },
   {
     id: "006",
-    name: "Summoned Skull",
+    name: "雷魔神",
     type: "monster",
     monsterType: "normal",
     level: 6,
@@ -71,7 +71,7 @@ export const CARD_DATABASE = [
   },
   {
     id: "007",
-    name: "Kuriboh",
+    name: "栗子球",
     type: "monster",
     monsterType: "effect",
     level: 1,
@@ -79,11 +79,11 @@ export const CARD_DATABASE = [
     def: 200,
     attribute: "DARK",
     race: "Fiend",
-    effect: "Discard this card; you take no battle damage from that battle.",
+    effect: "舍弃此卡；那次战斗发生的战斗伤害变为0。",
   },
   {
     id: "008",
-    name: "Battle Ox",
+    name: "战牛",
     type: "monster",
     monsterType: "normal",
     level: 4,
@@ -94,7 +94,7 @@ export const CARD_DATABASE = [
   },
   {
     id: "009",
-    name: "Mystical Elf",
+    name: "神圣精灵",
     type: "monster",
     monsterType: "normal",
     level: 4,
@@ -105,7 +105,7 @@ export const CARD_DATABASE = [
   },
   {
     id: "010",
-    name: "Hane-Kuriboh",
+    name: "羽翼栗子球",
     type: "monster",
     monsterType: "effect",
     level: 1,
@@ -113,11 +113,11 @@ export const CARD_DATABASE = [
     def: 200,
     attribute: "LIGHT",
     race: "Fairy",
-    effect: "When your opponent's monster declares an attack: You can discard this card; negate that attack.",
+    effect: "对方怪兽宣言攻击时：可以舍弃此卡；使那次攻击无效。",
   },
   {
     id: "011",
-    name: "Sangan",
+    name: "三眼怪",
     type: "monster",
     monsterType: "effect",
     level: 3,
@@ -125,11 +125,11 @@ export const CARD_DATABASE = [
     def: 600,
     attribute: "DARK",
     race: "Fiend",
-    effect: "When this card is sent to the Graveyard: Add 1 monster with 1500 or less ATK from your Deck to your hand.",
+    effect: "此卡送入墓地时：从卡组把攻击力1500以下的1只怪兽加入手牌。",
   },
   {
     id: "012",
-    name: "Witch of the Black Forest",
+    name: "黑森林女巫",
     type: "monster",
     monsterType: "effect",
     level: 4,
@@ -137,11 +137,11 @@ export const CARD_DATABASE = [
     def: 1200,
     attribute: "DARK",
     race: "Spellcaster",
-    effect: "When this card is sent to the Graveyard: Add 1 monster with 1500 or less DEF from your Deck to your hand.",
+    effect: "此卡送入墓地时：从卡组把守备力1500以下的1只怪兽加入手牌。",
   },
   {
     id: "013",
-    name: "Swordsman of Landstar",
+    name: "星之战士",
     type: "monster",
     monsterType: "normal",
     level: 3,
@@ -152,7 +152,7 @@ export const CARD_DATABASE = [
   },
   {
     id: "014",
-    name: "Great Mammoth of Goldfine",
+    name: "黄金魔象",
     type: "monster",
     monsterType: "normal",
     level: 6,
@@ -163,7 +163,7 @@ export const CARD_DATABASE = [
   },
   {
     id: "015",
-    name: "Trial of Nightmare",
+    name: "梦魇试炼",
     type: "monster",
     monsterType: "normal",
     level: 4,
@@ -174,7 +174,7 @@ export const CARD_DATABASE = [
   },
   {
     id: "016",
-    name: "Millennium Shield",
+    name: "千年盾",
     type: "monster",
     monsterType: "normal",
     level: 5,
@@ -185,7 +185,7 @@ export const CARD_DATABASE = [
   },
   {
     id: "017",
-    name: "Feral Imp",
+    name: "小恶魔",
     type: "monster",
     monsterType: "normal",
     level: 4,
@@ -196,7 +196,7 @@ export const CARD_DATABASE = [
   },
   {
     id: "018",
-    name: "Wall of Illusion",
+    name: "幻影墙",
     type: "monster",
     monsterType: "effect",
     level: 4,
@@ -204,11 +204,11 @@ export const CARD_DATABASE = [
     def: 1850,
     attribute: "DARK",
     race: "Fiend",
-    effect: "If this card is attacked by a monster, after damage calculation: Return that monster to the hand.",
+    effect: "此卡被怪兽攻击时，伤害计算后：将那只怪兽返回持有者手牌。",
   },
   {
     id: "019",
-    name: "Mysterious Puppeteer",
+    name: "神秘人偶师",
     type: "monster",
     monsterType: "normal",
     level: 4,
@@ -219,7 +219,7 @@ export const CARD_DATABASE = [
   },
   {
     id: "020",
-    name: "Gaia the Fierce Knight",
+    name: "混沌战士",
     type: "monster",
     monsterType: "normal",
     level: 7,
@@ -228,128 +228,131 @@ export const CARD_DATABASE = [
     attribute: "EARTH",
     race: "Warrior",
   },
-  // Spells (101-115)
+  // 魔法卡 (101-113)
   {
     id: "101",
-    name: "Pot of Greed",
+    name: "贪欲之壶",
     type: "spell",
     spellType: "normal",
-    effect: "Draw 2 cards.",
+    effect: "抽2张卡。",
   },
   {
     id: "102",
-    name: "Monster Reborn",
+    name: "死者苏生",
     type: "spell",
     spellType: "normal",
-    effect: "Target 1 monster in either player's Graveyard; Special Summon it.",
+    effect: "以双方墓地1只怪兽为对象；将该怪兽特殊召唤。",
   },
   {
     id: "103",
-    name: "Dark Hole",
+    name: "黑洞",
     type: "spell",
     spellType: "normal",
-    effect: "Destroy all monsters on the field.",
+    effect: "场上的怪兽全部破坏。",
   },
   {
     id: "104",
-    name: "Raigeki",
+    name: "雷击",
     type: "spell",
     spellType: "normal",
-    effect: "Destroy all monsters your opponent controls.",
+    effect: "将对方场上所有怪兽破坏。",
   },
   {
     id: "105",
-    name: "Swords of Revealing Light",
+    name: "光之护封剑",
     type: "spell",
     spellType: "normal",
-    effect: "After this card's effect, it remains on the field. Your opponent's monsters cannot declare an attack.",
+    effect: "此卡发动后留在场上。对方怪兽不能宣言攻击。",
   },
   {
     id: "106",
-    name: "Mystical Space Typhoon",
+    name: "旋风",
     type: "spell",
     spellType: "quickplay",
-    effect: "Target 1 Spell/Trap on the field; destroy that target.",
+    effect: "以场上1张魔法·陷阱卡为对象；破坏该卡。",
   },
   {
     id: "107",
-    name: "Heavy Storm",
+    name: "大风暴",
     type: "spell",
     spellType: "normal",
-    effect: "Destroy all Spell and Trap Cards on the field.",
+    effect: "场上的魔法·陷阱卡全部破坏。",
   },
   {
     id: "108",
-    name: "Polymerization",
+    name: "融合",
     type: "spell",
     spellType: "normal",
-    effect: "Fusion Summon 1 Fusion Monster from your Extra Deck, using monsters from your hand or field as Fusion Material.",
+    effect: "使用手牌或场上的怪兽作为融合素材，从额外卡组融合召唤1只融合怪兽。",
   },
   {
     id: "109",
-    name: "Change of Heart",
+    name: "心变",
     type: "spell",
     spellType: "normal",
-    effect: "Target 1 monster your opponent controls; take control of it until the End Phase.",
+    effect: "以对方场上1只怪兽为对象；直到结束阶段获得该怪兽的控制权。",
   },
   {
     id: "110",
-    name: "Premature Burial",
+    name: "过早的埋葬",
     type: "spell",
     spellType: "equip",
-    effect: "Activate by paying 800 LP; Special Summon 1 monster from your Graveyard and equip it with this card.",
+    effect: "支付800基本分发动；从墓地特殊召唤1只怪兽，并装备此卡。",
   },
   {
     id: "111",
-    name: "Book of Moon",
+    name: "月之书",
     type: "spell",
     spellType: "quickplay",
-    effect: "Target 1 face-up monster on the field; change it to face-down Defense Position.",
+    effect: "以场上1只表侧表示怪兽为对象；将其变为里侧守备表示。",
   },
   {
     id: "112",
-    name: "Lightning Vortex",
+    name: "闪电漩涡",
     type: "spell",
     spellType: "normal",
-    effect: "Discard 1 card; destroy all face-up monsters your opponent controls.",
+    effect: "舍弃1张手牌；将对方场上所有表侧表示怪兽破坏。",
   },
   {
     id: "113",
-    name: "Fissure",
+    name: "地割",
     type: "spell",
     spellType: "normal",
-    effect: "Destroy the 1 face-up monster your opponent controls with the lowest ATK.",
+    effect: "破坏对方场上攻击力最低的1只表侧表示怪兽。",
   },
+  // 陷阱卡 (114-115)
   {
     id: "114",
-    name: "Gravedigger's Trap Hole",
+    name: "盗墓者的陷阱",
     type: "trap",
     trapType: "normal",
-    effect: "Negate the effect of a Trap that targets a monster in the Graveyard.",
+    effect: "以墓地怪兽为对象的陷阱卡效果无效。",
   },
   {
     id: "115",
-    name: "Mirror Force",
+    name: "圣防护罩",
     type: "trap",
     trapType: "normal",
-    effect: "When an opponent's monster declares an attack: Destroy all your opponent's Attack Position monsters.",
+    effect: "对方怪兽宣言攻击时：将对方场上所有攻击表示怪兽破坏。",
   },
 ];
 
-// Get card by ID
+// 根据ID获取卡牌
 export function getCardById(id) {
   return CARD_DATABASE.find((card) => card.id === id);
 }
 
-// Get cards by type for building decks
+// 获取怪兽卡
 export function getMonsters() {
   return CARD_DATABASE.filter((c) => c.type === "monster");
 }
 
+// 获取魔法卡
 export function getSpells() {
   return CARD_DATABASE.filter((c) => c.type === "spell");
 }
 
+// 获取陷阱卡
 export function getTraps() {
   return CARD_DATABASE.filter((c) => c.type === "trap");
 }

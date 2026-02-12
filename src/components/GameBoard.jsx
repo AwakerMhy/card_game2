@@ -2,6 +2,8 @@ import { useReducer, useCallback, useState, useEffect } from "react";
 import PlayerArea from "./PlayerArea.jsx";
 import PhaseIndicator, { PHASES } from "./PhaseIndicator.jsx";
 import DamageDisplay from "./DamageDisplay.jsx";
+import CardDetailModal from "./CardDetailModal.jsx";
+import GraveyardModal from "./GraveyardModal.jsx";
 import {
   createInitialState,
   drawCard,
@@ -155,31 +157,16 @@ export default function GameBoard() {
   const currentPlayer = state.players[currentPlayerId];
   const opponent = state.players[opponentId];
 
-  const handlePhaseChange = useCallback(
-    (phase) => {
-      if (phase === "draw" && state.currentPhase === "end") {
-        dispatch({ type: "END_TURN" });
-        return;
-      }
-      dispatch({ type: "SET_PHASE", phase });
-    },
-    [state.currentPhase]
-  );
-
   const handleNextPhase = useCallback(() => {
     const idx = PHASES.findIndex((p) => p.id === state.currentPhase);
-    if (idx >= 0 && idx < PHASES.length - 1) {
+    if (idx < 0) return;
+    if (state.currentPhase === "draw") {
+      const shouldDraw = !(state.turnCount === 1 && state.currentTurn === 1);
+      if (shouldDraw) dispatch({ type: "DRAW", playerId: currentPlayerId });
+    }
+    if (idx < PHASES.length - 1) {
       dispatch({ type: "SET_PHASE", phase: PHASES[idx + 1].id });
     }
-  }, [state.currentPhase]);
-
-  const handleDrawPhase = useCallback(() => {
-    // First player doesn't draw on turn 1
-    const shouldDraw = !(state.turnCount === 1 && state.currentTurn === 1);
-    if (state.currentPhase === "draw" && shouldDraw) {
-      dispatch({ type: "DRAW", playerId: currentPlayerId });
-    }
-    dispatch({ type: "SET_PHASE", phase: "standby" });
   }, [state.currentPhase, state.turnCount, state.currentTurn, currentPlayerId]);
 
   const handleEndTurn = useCallback(() => {
@@ -254,7 +241,6 @@ export default function GameBoard() {
       <div className="flex justify-center mb-4">
         <PhaseIndicator
           currentPhase={state.currentPhase}
-          onPhaseChange={handlePhaseChange}
           onNextPhase={handleNextPhase}
         />
       </div>
@@ -273,14 +259,6 @@ export default function GameBoard() {
           <span>对战 AI</span>
         </label>
         <div className="flex gap-2">
-          {state.currentPhase === "draw" && (
-            <button
-              className="px-4 py-2 bg-amber-500 text-slate-900 font-bold rounded hover:bg-amber-400"
-              onClick={handleDrawPhase}
-            >
-              {state.turnCount === 1 ? "跳过抽牌" : "抽牌"}
-            </button>
-          )}
           <button
             className="px-4 py-2 bg-slate-600 text-white rounded hover:bg-slate-500"
             onClick={handleEndTurn}
@@ -295,6 +273,7 @@ export default function GameBoard() {
         dispatch={dispatch}
         currentPlayerId={currentPlayerId}
         opponentId={opponentId}
+        vsAI={vsAI}
       />
     </div>
   );
@@ -305,8 +284,11 @@ function GameBoardInner({
   dispatch,
   currentPlayerId,
   opponentId,
+  vsAI,
 }) {
   const [selectedHandCard, setSelectedHandCard] = useState(null);
+  const [viewingCard, setViewingCard] = useState(null);
+  const [graveyardViewing, setGraveyardViewing] = useState(null);
   const [selectedMonsterZone, setSelectedMonsterZone] = useState(null);
   const [selectedSpellTrapZone, setSelectedSpellTrapZone] = useState(null);
   const [attackMode, setAttackMode] = useState(false);
@@ -488,6 +470,9 @@ function GameBoardInner({
     }
   };
 
+  const handleViewDetails = (card) => setViewingCard(card);
+  const handleGraveyardClick = (playerId) => setGraveyardViewing(playerId);
+
   const directAttack = () => {
     if (attackMode && attackingZone !== null) {
       const hasAtk = opponent.monsterZones.some((m) => m && m.position === "attack");
@@ -507,6 +492,17 @@ function GameBoardInner({
 
   return (
     <div className="flex-1 flex flex-col gap-4">
+      {viewingCard && (
+        <CardDetailModal card={viewingCard} onClose={() => setViewingCard(null)} />
+      )}
+      {graveyardViewing && (
+        <GraveyardModal
+          cards={state.players[graveyardViewing]?.graveyard}
+          label={graveyardViewing === "player1" ? "玩家 1" : "玩家 2"}
+          onClose={() => setGraveyardViewing(null)}
+          onViewCard={(card) => setViewingCard(card)}
+        />
+      )}
       <PlayerArea
         player={opponent}
         isOpponent={true}
@@ -514,6 +510,8 @@ function GameBoardInner({
         spellTrapZones={opponent.spellTrapZones}
         hand={opponent.hand}
         onMonsterZoneClick={handleOpponentMonsterZoneClick}
+        onViewDetails={handleViewDetails}
+        onGraveyardClick={() => handleGraveyardClick(opponentId)}
         onDirectAttackClick={
           attackMode &&
           attackingZone !== null &&
@@ -536,6 +534,8 @@ function GameBoardInner({
         onMonsterZoneClick={handleMonsterZoneClick}
         onSpellTrapZoneClick={handleSpellTrapZoneClick}
         onHandCardClick={handleHandCardClick}
+        onViewDetails={handleViewDetails}
+        onGraveyardClick={() => handleGraveyardClick(currentPlayerId)}
         selectedMonsterZone={selectedMonsterZone}
         selectedSpellTrapZone={selectedSpellTrapZone}
         selectedHandCard={selectedHandCard}

@@ -1,6 +1,6 @@
 import Card from "./Card.jsx";
 
-export default function SpellTrapZone({ zones, onZoneClick, onZoneDrop, selectedZone }) {
+export default function SpellTrapZone({ zones, onZoneClick, onZoneDrop, onViewDetails, selectedZone }) {
   return (
     <div className="flex gap-1 justify-center">
       {zones.map((zone, index) => (
@@ -18,9 +18,10 @@ export default function SpellTrapZone({ zones, onZoneClick, onZoneDrop, selected
               size="sm"
               selected={selectedZone === index}
               onClick={() => onZoneClick && onZoneClick(index)}
+              onViewDetails={zone.faceDown ? undefined : onViewDetails}
             />
           ) : (
-            <span className="text-emerald-600/50 text-[10px]">S/T</span>
+            <span className="text-emerald-600/50 text-[10px]">魔陷</span>
           )}
         </div>
       ))}

@@ -2,6 +2,10 @@
 
 A browser-based card game with Yu-Gi-Oh mechanics, built with React and Tailwind CSS.
 
+## ??
+
+- [???? (docs/PROJECT_LOG.md)](docs/PROJECT_LOG.md) - ????????????????
+
 ## Features
 
 - **Card Types**: Monster (Normal/Effect), Spell, Trap cards
