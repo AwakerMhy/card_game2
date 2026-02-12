@@ -281,6 +281,52 @@ src/
 
 ---
 
+### 改动 9：单元测试
+
+**日期**：2025-02-12
+
+**改动内容**
+- 引入 Vitest 测试框架
+- 测试 gameState、spellEffects、battleCalculator、summonValidator、chainResolver
+
+**涉及文件**
+- `vitest.config.js`（新增）
+- `src/game-logic/*.test.js`（新增）
+
+---
+
+### 改动 10：魔法卡发动逻辑修复
+
+**日期**：2025-02-12
+
+**改动内容**
+- 手牌魔法：满足条件时可点击「发动魔法」发动
+- 盖放魔法：点击盖牌查看详情时，主阶段可点击「发动」发动
+- 新增 `ACTIVATE_SPELL_FROM_FIELD` action
+- 新增 `clearSpellTrapZone` 辅助函数
+
+**涉及文件**
+- `src/game-logic/gameState.js`
+- `src/components/GameBoard.jsx`
+- `src/components/CardDetailModal.jsx`
+
+---
+
+### 改动 11：AI 操作变慢 + 操作日志
+
+**日期**：2025-02-12
+
+**改动内容**
+- AI 操作间隔由 600ms 调整为 1300ms
+- 新增 `ActionLog` 组件，显示玩家与 AI 操作记录
+- 操作日志位于右下角，不遮挡主界面
+
+**涉及文件**
+- `src/components/ActionLog.jsx`（新增）
+- `src/components/GameBoard.jsx`
+
+---
+
 ## 四、文件变更总览
 
 | 文件 | 说明 |
@@ -292,6 +338,7 @@ src/
 | `src/components/CardDetailModal.jsx` | 卡牌详情弹窗 |
 | `src/components/GraveyardModal.jsx` | 墓地查看弹窗 |
 | `src/components/PhaseIndicator.jsx` | 阶段仅显示，不可点击 |
+| `src/components/ActionLog.jsx` | 操作日志 |
 
 ---
 
@@ -302,3 +349,4 @@ src/
 | 0.1.0 | 2025-02-12 | 完成 Phase 1-5 全部实现 |
 | 0.2.0 | 2025-02-12 | 卡牌中文化、详情弹窗、墓地查看、阶段仅显示 |
 | 0.3.0 | 2025-02-12 | 怪兽每回合仅攻击一次、盖牌可查看、音效 |
+| 0.4.0 | 2025-02-12 | 单元测试、魔法卡从手牌/场地发动、AI 操作变慢、操作日志 |

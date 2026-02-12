@@ -103,26 +103,31 @@ export function removeFromHand(state, playerId, instanceId) {
   };
 }
 
-// Remove card from spell/trap zone
-export function removeFromSpellTrapZone(state, playerId, zoneIndex) {
+// Clear spell/trap zone (returns card without sending to grave)
+export function clearSpellTrapZone(state, playerId, zoneIndex) {
   const player = state.players[playerId];
   const newZones = [...player.spellTrapZones];
   const card = newZones[zoneIndex];
   newZones[zoneIndex] = null;
-  let newState = {
-    ...state,
-    players: {
-      ...state.players,
-      [playerId]: {
-        ...player,
-        spellTrapZones: newZones,
+  return {
+    newState: {
+      ...state,
+      players: {
+        ...state.players,
+        [playerId]: {
+          ...player,
+          spellTrapZones: newZones,
+        },
       },
     },
+    card,
   };
-  if (card) {
-    newState = sendToGraveyard(newState, playerId, card);
-  }
-  return newState;
+}
+
+// Remove card from spell/trap zone and send to graveyard
+export function removeFromSpellTrapZone(state, playerId, zoneIndex) {
+  const { newState, card } = clearSpellTrapZone(state, playerId, zoneIndex);
+  return card ? sendToGraveyard(newState, playerId, card) : newState;
 }
 
 // Add card to graveyard

@@ -4,6 +4,7 @@ import PhaseIndicator, { PHASES } from "./PhaseIndicator.jsx";
 import DamageDisplay from "./DamageDisplay.jsx";
 import CardDetailModal from "./CardDetailModal.jsx";
 import GraveyardModal from "./GraveyardModal.jsx";
+import ActionLog from "./ActionLog.jsx";
 import {
   createInitialState,
   drawCard,
@@ -15,6 +16,7 @@ import {
   sendToGraveyard,
   getEmptyMonsterZoneIndex,
   getEmptySpellTrapZoneIndex,
+  clearSpellTrapZone,
 } from "../game-logic/gameState.js";
 import { canNormalSummon, getTributeCount } from "../game-logic/summonValidator.js";
 import { calculateBattle } from "../game-logic/battleCalculator.js";
@@ -52,6 +54,13 @@ function gameReducer(state, action) {
       const { playerId, card } = action;
       let newState = removeFromHand(state, playerId, card.instanceId);
       newState = resolveSpellEffect(newState, playerId, card);
+      return sendToGraveyard(newState, playerId, card);
+    }
+    case "ACTIVATE_SPELL_FROM_FIELD": {
+      const { playerId, zoneIndex } = action;
+      const { newState: clearedState, card } = clearSpellTrapZone(state, playerId, zoneIndex);
+      if (!card || card.type !== "spell") return state;
+      let newState = resolveSpellEffect(clearedState, playerId, card);
       return sendToGraveyard(newState, playerId, card);
     }
     case "ADD_TO_CHAIN": {
@@ -158,6 +167,11 @@ function gameReducer(state, action) {
 export default function GameBoard() {
   const [state, dispatch] = useReducer(gameReducer, initialState);
   const [vsAI, setVsAI] = useState(false);
+  const [actionLog, setActionLog] = useState([]);
+
+  const addLog = useCallback((text, source = "player") => {
+    setActionLog((prev) => [...prev, { text, source }]);
+  }, []);
 
   const currentPlayerId = state.currentTurn === 1 ? "player1" : "player2";
   const opponentId = state.currentTurn === 1 ? "player2" : "player1";
@@ -172,21 +186,28 @@ export default function GameBoard() {
       if (shouldDraw) {
         playDraw();
         dispatch({ type: "DRAW", playerId: currentPlayerId });
+        addLog?.(`玩家 ${state.currentTurn} 抽牌`, "player");
       }
     }
     if (idx < PHASES.length - 1) {
       playPhase();
-      dispatch({ type: "SET_PHASE", phase: PHASES[idx + 1].id });
+      const nextPhase = PHASES[idx + 1];
+      const phaseNames = { draw: "抽牌", standby: "准备", main1: "主阶段1", battle: "战斗", main2: "主阶段2", end: "结束" };
+      addLog?.(`进入${phaseNames[nextPhase.id] || nextPhase.id}阶段`, "player");
+      dispatch({ type: "SET_PHASE", phase: nextPhase.id });
     }
-  }, [state.currentPhase, state.turnCount, state.currentTurn, currentPlayerId]);
+  }, [state.currentPhase, state.turnCount, state.currentTurn, currentPlayerId, addLog]);
 
   const handleEndTurn = useCallback(() => {
+    addLog?.(`玩家 ${state.currentTurn} 结束回合`, "player");
     dispatch({ type: "END_TURN" });
-  }, []);
+  }, [addLog, state.currentTurn]);
 
   useEffect(() => {
     if (state.lastDamage) {
       playDamage();
+      const target = state.lastDamageTarget === "player1" ? "玩家 1" : "玩家 2";
+      addLog?.(`${target} 受到 ${state.lastDamage} 伤害`, "player");
       const t = setTimeout(() => dispatch({ type: "CLEAR_DAMAGE" }), 1200);
       return () => clearTimeout(t);
     }
@@ -201,28 +222,38 @@ export default function GameBoard() {
         const shouldDraw = !(state.turnCount === 1 && state.currentTurn === 1);
         if (state.currentPhase === "draw" && shouldDraw) {
           playDraw();
+          addLog("AI 抽牌", "ai");
           dispatch({ type: "DRAW", playerId: "player2" });
         }
         playPhase();
+        addLog("AI 进入准备阶段", "ai");
         dispatch({ type: "SET_PHASE", phase: "standby" });
       } else if (action.type === "SUMMON") {
         playSummon();
+        addLog(`AI 召唤 ${action.card?.name}`, "ai");
         dispatch(action);
       } else if (action.type === "BATTLE") {
         playAttack();
+        const attacker = state.players.player2?.monsterZones[action.attackerZoneIndex];
+        const defender = action.defenderZoneIndex >= 0 ? state.players.player1?.monsterZones[action.defenderZoneIndex] : null;
+        addLog(defender ? `AI ${attacker?.name} 攻击 ${defender?.name}` : `AI ${attacker?.name} 直接攻击`, "ai");
         dispatch(action);
       } else if (action.type === "NEXT_PHASE") {
         const idx = PHASES.findIndex((p) => p.id === state.currentPhase);
         if (idx >= 0 && idx < PHASES.length - 1) {
           playPhase();
-          dispatch({ type: "SET_PHASE", phase: PHASES[idx + 1].id });
+          const nextPhase = PHASES[idx + 1];
+          const phaseNames = { draw: "抽牌", standby: "准备", main1: "主阶段1", battle: "战斗", main2: "主阶段2", end: "结束" };
+          addLog(`AI 进入${phaseNames[nextPhase.id] || nextPhase.id}阶段`, "ai");
+          dispatch({ type: "SET_PHASE", phase: nextPhase.id });
         } else if (state.currentPhase === "end") {
+          addLog("AI 结束回合", "ai");
           dispatch({ type: "END_TURN" });
         }
       }
-    }, 600);
+    }, 1300);
     return () => clearTimeout(timer);
-  }, [vsAI, state.currentTurn, state.currentPhase, state.winner, state.turnCount, state.players]);
+  }, [vsAI, state.currentTurn, state.currentPhase, state.winner, state.turnCount, state.players, addLog]);
 
   if (state.winner) {
     return (
@@ -285,12 +316,14 @@ export default function GameBoard() {
         </div>
       </div>
 
+      <ActionLog entries={actionLog} />
       <GameBoardInner
         state={state}
         dispatch={dispatch}
         currentPlayerId={currentPlayerId}
         opponentId={opponentId}
         vsAI={vsAI}
+        addLog={addLog}
       />
     </div>
   );
@@ -302,6 +335,7 @@ function GameBoardInner({
   currentPlayerId,
   opponentId,
   vsAI,
+  addLog,
 }) {
   const [selectedHandCard, setSelectedHandCard] = useState(null);
   const [viewingCard, setViewingCard] = useState(null);
@@ -334,6 +368,7 @@ function GameBoardInner({
       const count = getTributeCount(card.level);
       if (count === 0 && emptyMonsterIndex >= 0) {
         playSummon();
+        addLog?.(`召唤 ${card.name}`, "player");
         dispatch({
           type: "SUMMON",
           playerId: currentPlayerId,
@@ -357,12 +392,13 @@ function GameBoardInner({
     const zone = currentPlayer.spellTrapZones[index];
     if (zone) {
       if (zone.faceDown) {
-        setViewingCard(zone);
+        setViewingCard({ card: zone, zoneIndex: index, playerId: currentPlayerId });
       }
       return;
     }
     if (selectedHandCard && (selectedHandCard.type === "spell" || selectedHandCard.type === "trap")) {
       playSet();
+      addLog?.(`盖放 ${selectedHandCard.name}`, "player");
       dispatch({
         type: "SET_SPELL_TRAP",
         playerId: currentPlayerId,
@@ -388,6 +424,7 @@ function GameBoardInner({
     if (draggedCard.type === "monster" && canNormalSummon(state, currentPlayerId, draggedCard)) {
       if (getTributeCount(draggedCard.level) === 0 && currentPlayer.monsterZones[zoneIndex] === null) {
         playSummon();
+        addLog?.(`召唤 ${draggedCard.name}`, "player");
         dispatch({
           type: "SUMMON",
           playerId: currentPlayerId,
@@ -404,6 +441,7 @@ function GameBoardInner({
     if (!draggedCard || currentPlayer.spellTrapZones[zoneIndex]) return;
     if (draggedCard.type === "spell" || draggedCard.type === "trap") {
       playSet();
+      addLog?.(`盖放 ${draggedCard.name}`, "player");
       dispatch({
         type: "SET_SPELL_TRAP",
         playerId: currentPlayerId,
@@ -417,6 +455,7 @@ function GameBoardInner({
 
   const handleActivateSpell = () => {
     if (selectedHandCard && selectedHandCard.type === "spell" && hasSpellEffect(selectedHandCard)) {
+      addLog?.(`发动魔法 ${selectedHandCard.name}`, "player");
       dispatch({
         type: "ACTIVATE_SPELL",
         playerId: currentPlayerId,
@@ -449,6 +488,7 @@ function GameBoardInner({
         setTributeIndices(newTributes);
         if (newTributes.length === tributeCount) {
           playSummon();
+          addLog?.(`祭品召唤 ${selectedHandCard.name}`, "player");
           dispatch({
             type: "SUMMON",
             playerId: currentPlayerId,
@@ -471,6 +511,7 @@ function GameBoardInner({
       }
     } else if (selectedHandCard?.type === "monster" && tributeCount === 0 && emptyMonsterIndex === index) {
       playSummon();
+      addLog?.(`召唤 ${selectedHandCard.name}`, "player");
       dispatch({
         type: "SUMMON",
         playerId: currentPlayerId,
@@ -487,6 +528,8 @@ function GameBoardInner({
       const oppMonster = opponent.monsterZones[index];
       if (myMonster && myMonster.position === "attack") {
         playAttack();
+        const def = opponent.monsterZones[index];
+        addLog?.(def ? `${myMonster.name} 攻击 ${def.name}` : `${myMonster.name} 攻击`, "player");
         dispatch({
           type: "BATTLE",
           attackerPlayerId: currentPlayerId,
@@ -508,6 +551,8 @@ function GameBoardInner({
       const hasAtk = opponent.monsterZones.some((m) => m && m.position === "attack");
       if (!hasAtk) {
         playAttack();
+        const myMonster = currentPlayer.monsterZones[attackingZone];
+        addLog?.(`${myMonster?.name} 直接攻击`, "player");
         dispatch({
           type: "BATTLE",
           attackerPlayerId: currentPlayerId,
@@ -524,7 +569,28 @@ function GameBoardInner({
   return (
     <div className="flex-1 flex flex-col gap-4">
       {viewingCard && (
-        <CardDetailModal card={viewingCard} onClose={() => setViewingCard(null)} />
+        <CardDetailModal
+          card={viewingCard}
+          onClose={() => setViewingCard(null)}
+          canActivate={
+            viewingCard.zoneIndex !== undefined &&
+            viewingCard.playerId === currentPlayerId &&
+            viewingCard.card?.type === "spell" &&
+            hasSpellEffect(viewingCard.card) &&
+            (state.currentPhase === "main1" || state.currentPhase === "main2")
+          }
+          onActivate={() => {
+            if (viewingCard.zoneIndex !== undefined && viewingCard.playerId === currentPlayerId) {
+              playPhase();
+              addLog?.(`发动盖牌 ${viewingCard.card?.name}`, "player");
+              dispatch({
+                type: "ACTIVATE_SPELL_FROM_FIELD",
+                playerId: viewingCard.playerId,
+                zoneIndex: viewingCard.zoneIndex,
+              });
+            }
+          }}
+        />
       )}
       {graveyardViewing && (
         <GraveyardModal
