@@ -5,6 +5,7 @@ import DamageDisplay from "./DamageDisplay.jsx";
 import CardDetailPanel from "./CardDetailPanel.jsx";
 import GraveyardModal from "./GraveyardModal.jsx";
 import GraveyardSelectModal from "./GraveyardSelectModal.jsx";
+import HandSelectModal from "./HandSelectModal.jsx";
 import ActionLog from "./ActionLog.jsx";
 import {
   createInitialState,
@@ -24,7 +25,7 @@ import {
 import { applyOnSummon, applyGraveyardEffect } from "../game-logic/monsterEffects.js";
 import { canNormalSummon, getTributeCount } from "../game-logic/summonValidator.js";
 import { calculateBattle } from "../game-logic/battleCalculator.js";
-import { resolveSpellEffect, hasSpellEffect, hasTrapEffect, canActivateFromField, canActivateFromFieldInPhase, needsTarget, getSpellTargetType } from "../game-logic/spellEffects.js";
+import { resolveSpellEffect, hasSpellEffect, hasTrapEffect, canActivateFromField, canActivateFromFieldInPhase, needsTarget, needsZoneForPlacement, needsDiscard, getSpellTargetType } from "../game-logic/spellEffects.js";
 import { getAIAction } from "../game-logic/aiOpponent.js";
 import { playDraw, playSummon, playAttack, playDamage, playSet, playPhase } from "../utils/sounds.js";
 
@@ -60,6 +61,7 @@ function gameReducer(state, action) {
       const { playerId, card, target } = action;
       let newState = removeFromHand(state, playerId, card.instanceId);
       newState = resolveSpellEffect(newState, playerId, card, target);
+      if (String(card.id) === "110" || String(card.id) === "105") return newState;
       return sendToGraveyard(newState, playerId, card);
     }
     case "ACTIVATE_SPELL_FROM_FIELD": {
@@ -67,7 +69,9 @@ function gameReducer(state, action) {
       const { newState: clearedState, card } = clearSpellTrapZone(state, playerId, zoneIndex);
       if (!card || (card.type !== "spell" && card.type !== "trap")) return state;
       if (!canActivateFromField(card)) return state;
-      let newState = resolveSpellEffect(clearedState, playerId, card, target);
+      const targetWithSpellZone = (String(card.id) === "110" || String(card.id) === "105") ? { ...target, spellZoneIndex: zoneIndex } : target;
+      let newState = resolveSpellEffect(clearedState, playerId, card, targetWithSpellZone);
+      if (String(card.id) === "110" || String(card.id) === "105") return newState;
       return sendToGraveyard(newState, playerId, card);
     }
     case "ADD_TO_CHAIN": {
@@ -119,10 +123,9 @@ function gameReducer(state, action) {
       const defender = defenderZoneIndex >= 0
         ? defenderPlayer.monsterZones[defenderZoneIndex]
         : null;
-      const defenderHasAtkMonsters = defenderPlayer.monsterZones.some(
-        (m) => m && m.position === "attack"
-      );
-      const isDirectAttack = !defenderHasAtkMonsters && defenderZoneIndex === -1;
+      const defenderHasAnyMonsters = defenderPlayer.monsterZones.some((m) => m !== null);
+      const isDirectAttack = defenderZoneIndex === -1 && !defenderHasAnyMonsters;
+      if (defenderZoneIndex === -1 && defenderHasAnyMonsters) return state;
 
       const result = calculateBattle(attacker, defender, isDirectAttack);
       if (!result) return state;
@@ -217,6 +220,7 @@ function gameReducer(state, action) {
       };
     }
     case "END_TURN": {
+      const endingPlayerId = state.currentTurn === 1 ? "player1" : "player2";
       let endState = {
         ...state,
         currentTurn: state.currentTurn === 1 ? 2 : 1,
@@ -224,10 +228,22 @@ function gameReducer(state, action) {
         canNormalSummon: true,
         turnCount: state.currentTurn === 2 ? state.turnCount + 1 : state.turnCount,
         attackedMonsters: { player1: [], player2: [] },
-        lightSwordActive: null,
         borrowedMonsters: [],
         changedPositionThisTurn: { player1: [], player2: [] },
       };
+      const ls = state.lightSwordCard;
+      if (ls && endingPlayerId === (ls.controllerPlayerId === "player1" ? "player2" : "player1")) {
+        const remains = ls.turnsRemaining - 1;
+        if (remains <= 0) {
+          const { newState: ns, card: lsCard } = clearSpellTrapZone(endState, ls.controllerPlayerId, ls.zoneIndex);
+          endState = lsCard ? sendToGraveyard(ns, ls.controllerPlayerId, lsCard) : ns;
+          endState = { ...endState, lightSwordActive: null, lightSwordCard: null };
+        } else {
+          endState = { ...endState, lightSwordCard: { ...ls, turnsRemaining: remains }, lightSwordActive: state.lightSwordActive };
+        }
+      } else {
+        endState = { ...endState, lightSwordActive: ls ? state.lightSwordActive : null, lightSwordCard: ls || null };
+      }
       const borrowed = state.borrowedMonsters || [];
       for (const b of borrowed) {
         const toP = endState.players[b.toPlayerId];
@@ -489,7 +505,11 @@ function GameBoardInner({
   const [tributeIndices, setTributeIndices] = useState([]);
   const [draggedCard, setDraggedCard] = useState(null);
   const [pendingSpellTarget, setPendingSpellTarget] = useState(null);
+  const [pendingSpecialSummonZone, setPendingSpecialSummonZone] = useState(null);
+  const [pendingLightSwordZone, setPendingLightSwordZone] = useState(null);
+  const [pendingDiscardSelect, setPendingDiscardSelect] = useState(null);
   const [pendingSummon, setPendingSummon] = useState(null);
+  const [tributeConfirmed, setTributeConfirmed] = useState(false);
   const [positionChangeZone, setPositionChangeZone] = useState(null);
 
   const currentPlayer = state.players[currentPlayerId];
@@ -517,18 +537,27 @@ function GameBoardInner({
   const emptyZoneIndices = currentPlayer.monsterZones.map((z, i) => (z === null ? i : -1)).filter((i) => i >= 0);
   const canShowSummonForm =
     selectedHandCard?.type === "monster" &&
-    (tributeCount === 0 ? emptyZoneIndices.length > 0 : tributeIndices.length === tributeCount) &&
+    (tributeCount === 0 ? emptyZoneIndices.length > 0 : tributeIndices.length === tributeCount && tributeConfirmed) &&
     !pendingSummon;
+  const casterEmptyZones = pendingSpecialSummonZone
+    ? (state.players[pendingSpecialSummonZone.casterPlayerId]?.monsterZones ?? [])
+        .map((z, i) => (z === null ? i : -1))
+        .filter((i) => i >= 0)
+    : [];
   const summonTargetZones =
-    pendingSummon?.position != null
-      ? pendingSummon.tributeIndices ?? emptyZoneIndices
-      : selectedHandCard?.type === "monster"
-        ? tributeCount === 0
-          ? emptyZoneIndices
-          : tributeZoneChoice
-            ? tributeIndices
-            : null
-        : null;
+    pendingSpecialSummonZone && bottomPlayerId === pendingSpecialSummonZone.casterPlayerId
+      ? casterEmptyZones
+      : pendingSummon?.position != null
+        ? pendingSummon.tributeIndices?.length
+          ? [...new Set([...emptyZoneIndices, ...pendingSummon.tributeIndices])]
+          : emptyZoneIndices
+        : selectedHandCard?.type === "monster"
+          ? tributeCount === 0
+            ? emptyZoneIndices
+            : tributeZoneChoice
+              ? tributeIndices
+              : null
+          : null;
 
   const handleHandCardClick = (card) => {
     if (attackMode) return;
@@ -537,6 +566,7 @@ function GameBoardInner({
       if (count > 0) {
         setSelectedHandCard(selectedHandCard?.instanceId === card.instanceId ? null : card);
         setTributeIndices([]);
+        setTributeConfirmed(false);
       } else {
         setSelectedHandCard(selectedHandCard?.instanceId === card.instanceId ? null : card);
       }
@@ -547,17 +577,30 @@ function GameBoardInner({
 
   const handleSpellTrapZoneClick = (index) => {
     if (attackMode) return;
+    if (pendingLightSwordZone && bottomPlayerId === pendingLightSwordZone.casterPlayerId && currentPlayer.spellTrapZones[index] === null) {
+      playPhase();
+      addLog?.(`发动魔法 ${pendingLightSwordZone.card.name}`, "player");
+      dispatch({
+        type: "ACTIVATE_SPELL",
+        playerId: pendingLightSwordZone.casterPlayerId,
+        card: pendingLightSwordZone.card,
+        target: { spellZoneIndex: index },
+      });
+      setSelectedHandCard(null);
+      setPendingLightSwordZone(null);
+      return;
+    }
     if (pendingSpellTarget?.targetType === "spellTrap" && bottomPlayer.spellTrapZones[index]) {
       handleSpellTargetSelected({ type: "spellTrap", playerId: bottomPlayerId, zoneIndex: index });
       return;
     }
     const zone = currentPlayer.spellTrapZones[index];
     if (zone) {
-      if (zone.faceDown) {
-        setViewingCard({ card: zone, zoneIndex: index, playerId: currentPlayerId });
-      }
+      setViewingCard({ card: zone, zoneIndex: index, playerId: currentPlayerId });
+      setSelectedSpellTrapZone(selectedSpellTrapZone === index ? null : index);
       return;
     }
+    setSelectedSpellTrapZone(null);
     if (selectedHandCard && (selectedHandCard.type === "spell" || selectedHandCard.type === "trap")) {
       playSet();
       addLog?.(`盖放 ${selectedHandCard.name}`, "player");
@@ -570,6 +613,7 @@ function GameBoardInner({
       });
       setSelectedHandCard(null);
     }
+    setSelectedSpellTrapZone(null);
   };
 
   const handleDragStart = (e, card) => {
@@ -610,6 +654,19 @@ function GameBoardInner({
 
   const handleActivateSpell = () => {
     if (selectedHandCard && selectedHandCard.type === "spell" && hasSpellEffect(selectedHandCard)) {
+      if (needsZoneForPlacement(selectedHandCard)) {
+        addLog?.(`发动 ${selectedHandCard.name}，请选择魔陷格放置`, "player");
+        setPendingLightSwordZone({ card: selectedHandCard, casterPlayerId: currentPlayerId });
+        return;
+      }
+      if (needsDiscard(selectedHandCard)) {
+        const hand = state.players[currentPlayerId]?.hand ?? [];
+        const handWithoutSpell = hand.filter((c) => c.instanceId !== selectedHandCard.instanceId);
+        if (handWithoutSpell.length === 0) return;
+        addLog?.(`发动 ${selectedHandCard.name}，请选择要舍弃的手牌`, "player");
+        setPendingDiscardSelect({ card: selectedHandCard, fromField: false, casterPlayerId: currentPlayerId });
+        return;
+      }
       if (needsTarget(selectedHandCard)) {
         addLog?.(`发动 ${selectedHandCard.name}，请选择对象`, "player");
         setPendingSpellTarget({
@@ -633,6 +690,18 @@ function GameBoardInner({
     if (target.type === "graveyard") {
       const ownerLabel = label(target.playerId);
       addLog?.(`选择 ${ownerLabel} 墓地的 ${target.cardName || "怪兽"}`, "player");
+      if (String(pending.card?.id) === "102" || String(pending.card?.id) === "110") {
+        setPendingSpecialSummonZone({
+          spellCard: pending.card,
+          target: { type: "graveyard", playerId: target.playerId, instanceId: target.instanceId, cardName: target.cardName },
+          fromField: pending.fromField,
+          casterPlayerId: pending.casterPlayerId,
+          zoneIndex: pending.zoneIndex,
+        });
+        setPendingSpellTarget(null);
+        setViewingCard(null);
+        return;
+      }
     } else if (target.type === "spellTrap") {
       addLog?.(`选择 ${label(target.playerId)} 场上的魔法·陷阱`, "player");
     } else if (target.type === "monster") {
@@ -661,8 +730,38 @@ function GameBoardInner({
     setViewingCard(null);
   };
 
+  const handleSpecialSummonZoneSelected = (zoneIndex) => {
+    const p = pendingSpecialSummonZone;
+    if (!p || !casterEmptyZones.includes(zoneIndex)) return;
+    playPhase();
+    if (p.fromField) {
+      addLog?.(`发动盖牌 ${p.spellCard.name}`, "player");
+      dispatch({
+        type: "ACTIVATE_SPELL_FROM_FIELD",
+        playerId: p.casterPlayerId,
+        zoneIndex: p.zoneIndex,
+        target: { ...p.target, zoneIndex },
+      });
+    } else {
+      addLog?.(`发动魔法 ${p.spellCard.name}`, "player");
+      dispatch({
+        type: "ACTIVATE_SPELL",
+        playerId: p.casterPlayerId,
+        card: p.spellCard,
+        target: { ...p.target, zoneIndex },
+      });
+      setSelectedHandCard(null);
+    }
+    setPendingSpecialSummonZone(null);
+    setViewingCard(null);
+  };
+
   const handleMonsterZoneClick = (index) => {
     if (attackMode) return;
+    if (pendingSpecialSummonZone && bottomPlayerId === pendingSpecialSummonZone.casterPlayerId && casterEmptyZones.includes(index)) {
+      handleSpecialSummonZoneSelected(index);
+      return;
+    }
     if (pendingSummon?.position != null && summonTargetZones?.includes(index)) {
       playSummon();
       addLog?.(pendingSummon.tributeIndices?.length ? `祭品召唤 ${pendingSummon.card.name}` : `召唤 ${pendingSummon.card.name}`, "player");
@@ -678,6 +777,7 @@ function GameBoardInner({
       setSelectedHandCard(null);
       setTributeIndices([]);
       setPendingSummon(null);
+      setTributeConfirmed(false);
       return;
     }
     const canChangePosition =
@@ -702,7 +802,7 @@ function GameBoardInner({
       return;
     }
     if (state.currentPhase === "battle") {
-      const blockedByLightSword = state.lightSwordActive === topPlayerId;
+      const blockedByLightSword = state.lightSwordActive === currentPlayerId;
       const monster = currentPlayer.monsterZones[index];
       const hasAttacked = state.attackedMonsters?.[currentPlayerId]?.includes(index);
       if (!blockedByLightSword && monster && monster.position === "attack" && !hasAttacked) {
@@ -731,6 +831,7 @@ function GameBoardInner({
       setSelectedHandCard(null);
       setTributeIndices([]);
       setPendingSummon(null);
+      setTributeConfirmed(false);
     } else {
       setPendingSummon({ card, tributeIndices: tributes, position, faceDown });
     }
@@ -749,7 +850,7 @@ function GameBoardInner({
       }
       return;
     }
-    if (state.lightSwordActive === topPlayerId) return;
+    if (state.lightSwordActive === currentPlayerId) return;
     if (attackMode && attackingZone !== null) {
       const myMonster = currentPlayer.monsterZones[attackingZone];
       const oppMonster = topPlayer.monsterZones[index];
@@ -771,10 +872,10 @@ function GameBoardInner({
   const handleGraveyardClick = (playerId) => setGraveyardViewing(playerId);
 
   const directAttack = () => {
-    if (state.lightSwordActive === topPlayerId) return;
+    if (state.lightSwordActive === currentPlayerId) return;
     if (attackMode && attackingZone !== null) {
-      const hasAtk = topPlayer.monsterZones.some((m) => m && m.position === "attack");
-      if (!hasAtk) {
+      const hasAnyMonsters = topPlayer.monsterZones.some((m) => m !== null);
+      if (!hasAnyMonsters) {
         const myMonster = currentPlayer.monsterZones[attackingZone];
         addLog?.(`${myMonster?.name} 宣言直接攻击`, "player");
         dispatch({
@@ -829,12 +930,18 @@ function GameBoardInner({
 
   return (
     <div className="flex-1 flex flex-col gap-1 min-h-0 overflow-hidden relative">
+      {viewingCard && (
       <div
-        className="fixed right-4 top-[42%] -translate-y-1/2 z-30 h-[52vh] flex flex-col items-end pointer-events-auto"
+        className="fixed right-4 top-1/2 -translate-y-1/2 z-30 h-[52vh] flex flex-col items-end pointer-events-auto"
       >
         <CardDetailPanel
           card={viewingCard}
-          onClear={viewingCard ? () => setViewingCard(null) : undefined}
+          equippedMonsterName={
+            viewingCard?.playerId && viewingCard?.card?.equippedToMonsterZoneIndex != null
+              ? state.players[viewingCard.playerId]?.monsterZones[viewingCard.card.equippedToMonsterZoneIndex]?.name
+              : null
+          }
+          onClear={viewingCard ? () => { setViewingCard(null); setSelectedSpellTrapZone(null); } : undefined}
           canActivate={
             viewingCard &&
             viewingCard.zoneIndex !== undefined &&
@@ -846,6 +953,18 @@ function GameBoardInner({
           onActivate={() => {
             if (viewingCard?.zoneIndex !== undefined && viewingCard?.playerId === currentPlayerId) {
               const card = viewingCard.card;
+              if (needsDiscard(card)) {
+                const hand = state.players[currentPlayerId]?.hand ?? [];
+                if (hand.length === 0) return;
+                addLog?.(`发动盖牌 ${card.name}，请选择要舍弃的手牌`, "player");
+                setPendingDiscardSelect({
+                  card,
+                  fromField: true,
+                  casterPlayerId: viewingCard.playerId,
+                  zoneIndex: viewingCard.zoneIndex,
+                });
+                return;
+              }
               if (needsTarget(card)) {
                 addLog?.(`发动盖牌 ${card.name}，请选择对象`, "player");
                 setPendingSpellTarget({
@@ -869,12 +988,55 @@ function GameBoardInner({
           }}
         />
       </div>
+      )}
       {graveyardViewing && !pendingSpellTarget && (
         <GraveyardModal
           cards={state.players[graveyardViewing]?.graveyard}
           label={graveyardViewing === "player1" ? "玩家 1" : "玩家 2"}
           onClose={() => setGraveyardViewing(null)}
           onViewCard={(card) => setViewingCard(card)}
+        />
+      )}
+      {pendingDiscardSelect && (
+        <HandSelectModal
+          hand={
+            (() => {
+              const pid = pendingDiscardSelect.casterPlayerId;
+              const hand = state.players[pid]?.hand ?? [];
+              return pendingDiscardSelect.fromField
+                ? hand
+                : hand.filter((c) => c.instanceId !== pendingDiscardSelect.card?.instanceId);
+            })()
+          }
+          title={`选择要舍弃的手牌（${pendingDiscardSelect.card?.name}）`}
+          onSelect={(card) => {
+            const p = pendingDiscardSelect;
+            playPhase();
+            addLog?.(p.fromField ? `发动盖牌 ${p.card.name}` : `发动魔法 ${p.card.name}`, "player");
+            if (p.fromField) {
+              dispatch({
+                type: "ACTIVATE_SPELL_FROM_FIELD",
+                playerId: p.casterPlayerId,
+                zoneIndex: p.zoneIndex,
+                target: { discardInstanceId: card.instanceId },
+              });
+            } else {
+              dispatch({
+                type: "ACTIVATE_SPELL",
+                playerId: p.casterPlayerId,
+                card: p.card,
+                target: { discardInstanceId: card.instanceId },
+              });
+              setSelectedHandCard(null);
+            }
+            setPendingDiscardSelect(null);
+            setViewingCard(null);
+          }}
+          onClose={() => {
+            setPendingDiscardSelect(null);
+            if (pendingDiscardSelect && !pendingDiscardSelect.fromField) setSelectedHandCard(null);
+            setViewingCard(null);
+          }}
         />
       )}
       {pendingSpellTarget?.targetType === "graveyard" && (
@@ -908,12 +1070,12 @@ function GameBoardInner({
         <div className="absolute top-0 right-4 z-10 flex flex-col gap-1 items-end">
           <div
             className={`px-4 py-2 bg-slate-800 rounded-lg ${
-              attackMode && attackingZone !== null && isBottomActive && !topPlayer.monsterZones.some((m) => m && m.position === "attack")
+              attackMode && attackingZone !== null && isBottomActive && !topPlayer.monsterZones.some((m) => m !== null)
                 ? "cursor-pointer hover:bg-slate-700 ring-2 ring-amber-500"
                 : ""
             }`}
             onClick={
-              attackMode && attackingZone !== null && isBottomActive && !topPlayer.monsterZones.some((m) => m && m.position === "attack")
+              attackMode && attackingZone !== null && isBottomActive && !topPlayer.monsterZones.some((m) => m !== null)
                 ? directAttack
                 : undefined
             }
@@ -945,7 +1107,7 @@ function GameBoardInner({
             attackMode &&
             attackingZone !== null &&
             isBottomActive &&
-            !topPlayer.monsterZones.some((m) => m && m.position === "attack")
+            !topPlayer.monsterZones.some((m) => m !== null)
               ? directAttack
               : undefined
           }
@@ -965,10 +1127,20 @@ function GameBoardInner({
         onGraveyardClick={() => handleGraveyardClick(bottomPlayerId)}
         selectedMonsterZone={isBottomActive ? selectedMonsterZone : null}
         selectedSpellTrapZone={isBottomActive ? selectedSpellTrapZone : null}
+        spellTrapHighlightIndices={
+          pendingLightSwordZone && bottomPlayerId === pendingLightSwordZone.casterPlayerId
+            ? (state.players[pendingLightSwordZone.casterPlayerId]?.spellTrapZones ?? [])
+                .map((z, i) => (z === null ? i : -1))
+                .filter((i) => i >= 0)
+            : null
+        }
+        equipHighlightZoneIndex={
+          isBottomActive && selectedSpellTrapZone != null
+            ? bottomPlayer.spellTrapZones[selectedSpellTrapZone]?.equippedToMonsterZoneIndex ?? null
+            : null
+        }
         selectedHandCard={isBottomActive ? selectedHandCard : null}
         playableHandCards={isBottomActive ? [...playableMonsters, ...playableSpells] : []}
-        onActivateSpell={isBottomActive ? handleActivateSpell : undefined}
-        canActivateSpell={isBottomActive && selectedHandCard?.type === "spell" && hasSpellEffect(selectedHandCard)}
         tributeIndices={isBottomActive ? tributeIndices : []}
         summonTargetZones={isBottomActive ? summonTargetZones : null}
         onDragStart={isBottomActive ? handleDragStart : undefined}
@@ -985,87 +1157,115 @@ function GameBoardInner({
         </div>
       </div>
 
+      {isBottomActive && selectedHandCard?.type === "spell" && hasSpellEffect(selectedHandCard) && !pendingSpellTarget && !pendingLightSwordZone && !pendingDiscardSelect && (
+        <div className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 field-popup bg-slate-800 px-2.5 py-1.5 rounded flex items-center gap-1.5 z-30 shadow-lg">
+          <span className="text-amber-200 text-xs">发动魔法：</span>
+          <button className="px-2 py-0.5 bg-emerald-600 rounded hover:bg-emerald-500 text-white text-xs" onClick={handleActivateSpell}>
+            发动 {selectedHandCard?.name}
+          </button>
+          <button className="px-1.5 py-0.5 bg-slate-600 rounded hover:bg-slate-500 text-xs" onClick={() => setSelectedHandCard(null)}>取消</button>
+        </div>
+      )}
       {(canShowSummonForm || (pendingSummon && pendingSummon.position == null)) && (
-        <div className="fixed bottom-20 left-1/2 -translate-x-1/2 bg-slate-800 px-4 py-2 rounded-lg flex items-center gap-2">
-          <span className="text-amber-200 text-sm">选择表示形式：</span>
-          <button className="px-3 py-1 bg-blue-600 rounded hover:bg-blue-500 text-white text-sm" onClick={() => confirmSummonPosition("attack", false)}>表侧攻击表示</button>
-          <button className="px-3 py-1 bg-amber-600 rounded hover:bg-amber-500 text-white text-sm" onClick={() => confirmSummonPosition("defense", true)}>里侧守备表示</button>
-          <button className="px-2 py-1 bg-slate-600 rounded hover:bg-slate-500 text-sm" onClick={() => { setPendingSummon(null); setSelectedHandCard(null); setTributeIndices([]); }}>取消</button>
+        <div className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 field-popup bg-slate-800 px-2.5 py-1.5 rounded flex items-center gap-1.5 z-30 shadow-lg">
+          <span className="text-amber-200 text-xs">{tributeCount > 0 ? "2. " : ""}选择表示形式：</span>
+          <button className="px-2 py-0.5 bg-blue-600 rounded hover:bg-blue-500 text-white text-xs" onClick={() => confirmSummonPosition("attack", false)}>表侧攻击</button>
+          <button className="px-2 py-0.5 bg-amber-600 rounded hover:bg-amber-500 text-white text-xs" onClick={() => confirmSummonPosition("defense", true)}>里侧守备</button>
+          <button className="px-1.5 py-0.5 bg-slate-600 rounded hover:bg-slate-500 text-xs" onClick={() => { setPendingSummon(null); setSelectedHandCard(null); setTributeIndices([]); setTributeConfirmed(false); }}>取消</button>
+        </div>
+      )}
+      {pendingSpecialSummonZone && (
+        <div className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 field-popup bg-slate-800 px-2.5 py-1.5 rounded flex items-center gap-1.5 z-30 shadow-lg">
+          <span className="text-amber-200 text-xs">点击一个格子放置复活的怪兽</span>
+          <button className="px-1.5 py-0.5 bg-slate-600 rounded hover:bg-slate-500 text-xs" onClick={() => { setPendingSpecialSummonZone(null); setViewingCard(null); setSelectedHandCard(null); }}>取消</button>
+        </div>
+      )}
+      {pendingLightSwordZone && (
+        <div className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 field-popup bg-slate-800 px-2.5 py-1.5 rounded flex items-center gap-1.5 z-30 shadow-lg">
+          <span className="text-amber-200 text-xs">点击一个魔陷格放置光之护封剑</span>
+          <button className="px-1.5 py-0.5 bg-slate-600 rounded hover:bg-slate-500 text-xs" onClick={() => { setPendingLightSwordZone(null); setSelectedHandCard(null); }}>取消</button>
         </div>
       )}
       {pendingSummon?.position != null && (
-        <div className="fixed bottom-20 left-1/2 -translate-x-1/2 bg-slate-800 px-4 py-2 rounded-lg flex items-center gap-2">
-          <span className="text-amber-200 text-sm">点击一个格子放置怪兽</span>
-          <button className="px-2 py-1 bg-slate-600 rounded hover:bg-slate-500 text-sm" onClick={() => { setPendingSummon(null); setSelectedHandCard(null); setTributeIndices([]); }}>取消</button>
+        <div className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 field-popup bg-slate-800 px-2.5 py-1.5 rounded flex items-center gap-1.5 z-30 shadow-lg">
+          <span className="text-amber-200 text-xs">{pendingSummon?.tributeIndices?.length ? "3. " : ""}点击一个格子放置怪兽</span>
+          <button className="px-1.5 py-0.5 bg-slate-600 rounded hover:bg-slate-500 text-xs" onClick={() => { setPendingSummon(null); setSelectedHandCard(null); setTributeIndices([]); setTributeConfirmed(false); }}>取消</button>
         </div>
       )}
       {pendingSpellTarget?.targetType === "spellTrap" && (
-        <div className="fixed bottom-20 left-1/2 -translate-x-1/2 bg-slate-700 px-4 py-2 rounded-lg text-amber-200 text-sm">
+        <div className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 field-popup bg-slate-700 px-2.5 py-1.5 rounded flex items-center gap-1.5 text-amber-200 text-xs z-30 shadow-lg">
           点击场上的一张魔法·陷阱卡选择对象
-          <button className="ml-2 px-2 py-1 bg-slate-600 rounded hover:bg-slate-500 text-xs" onClick={() => { setPendingSpellTarget(null); setSelectedHandCard(null); setViewingCard(null); }}>取消</button>
+          <button className="px-1.5 py-0.5 bg-slate-600 rounded hover:bg-slate-500" onClick={() => { setPendingSpellTarget(null); setSelectedHandCard(null); setViewingCard(null); }}>取消</button>
         </div>
       )}
       {pendingSpellTarget?.targetType === "opponentMonster" && (
-        <div className="fixed bottom-20 left-1/2 -translate-x-1/2 bg-slate-700 px-4 py-2 rounded-lg text-amber-200 text-sm">
+        <div className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 field-popup bg-slate-700 px-2.5 py-1.5 rounded flex items-center gap-1.5 text-amber-200 text-xs z-30 shadow-lg">
           点击对方场上1只怪兽选择对象
-          <button className="ml-2 px-2 py-1 bg-slate-600 rounded hover:bg-slate-500 text-xs" onClick={() => { setPendingSpellTarget(null); setSelectedHandCard(null); setViewingCard(null); }}>取消</button>
+          <button className="px-1.5 py-0.5 bg-slate-600 rounded hover:bg-slate-500" onClick={() => { setPendingSpellTarget(null); setSelectedHandCard(null); setViewingCard(null); }}>取消</button>
         </div>
       )}
       {positionChangeZone !== null && (
-        <div className="fixed bottom-20 left-1/2 -translate-x-1/2 bg-slate-800 px-4 py-2 rounded-lg flex items-center gap-2">
-          <span className="text-amber-200 text-sm">改变表示形态：</span>
-          <button className="px-3 py-1 bg-blue-600 rounded hover:bg-blue-500 text-white text-sm" onClick={() => confirmPositionChange("attack")}>改为攻击表示</button>
-          <button className="px-3 py-1 bg-amber-600 rounded hover:bg-amber-500 text-white text-sm" onClick={() => confirmPositionChange("defense")}>改为守备表示</button>
-          <button className="px-2 py-1 bg-slate-600 rounded hover:bg-slate-500 text-sm" onClick={() => setPositionChangeZone(null)}>取消</button>
+        <div className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 field-popup bg-slate-800 px-2.5 py-1.5 rounded flex items-center gap-1.5 z-30 shadow-lg">
+          <span className="text-amber-200 text-xs">改变表示形态：</span>
+          <button className="px-2 py-0.5 bg-blue-600 rounded hover:bg-blue-500 text-white text-xs" onClick={() => confirmPositionChange("attack")}>攻击</button>
+          <button className="px-2 py-0.5 bg-amber-600 rounded hover:bg-amber-500 text-white text-xs" onClick={() => confirmPositionChange("defense")}>守备</button>
+          <button className="px-1.5 py-0.5 bg-slate-600 rounded hover:bg-slate-500 text-xs" onClick={() => setPositionChangeZone(null)}>取消</button>
         </div>
       )}
-      {tributeCount > 0 && selectedHandCard?.type === "monster" && !pendingSummon && (
-        <div className="fixed bottom-20 left-1/2 -translate-x-1/2 bg-amber-800 px-4 py-2 rounded-lg flex items-center gap-2">
-          <span className="text-amber-200">{tributeZoneChoice ? "点击一个祭品格放置怪兽" : `选择 ${tributeCount} 只祭品怪兽`}</span>
+      {tributeCount > 0 && selectedHandCard?.type === "monster" && !pendingSummon && !tributeConfirmed && (
+        <div className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 field-popup bg-amber-800 px-2.5 py-1.5 rounded flex items-center gap-1.5 z-30 shadow-lg">
+          <span className="text-amber-200 text-xs">1. 选择 {tributeCount} 只祭品怪兽</span>
           <button
-            className="px-2 py-1 bg-slate-600 rounded hover:bg-slate-500"
-            onClick={() => { setSelectedHandCard(null); setTributeIndices([]); }}
+            className="px-2 py-0.5 bg-green-600 rounded hover:bg-green-500 text-white text-xs disabled:opacity-50 disabled:cursor-not-allowed"
+            onClick={() => setTributeConfirmed(true)}
+            disabled={!tributeZoneChoice}
+          >
+            确认祭品
+          </button>
+          <button
+            className="px-1.5 py-0.5 bg-slate-600 rounded hover:bg-slate-500 text-xs"
+            onClick={() => { setSelectedHandCard(null); setTributeIndices([]); setTributeConfirmed(false); }}
           >
             取消
           </button>
         </div>
       )}
       {state.pendingAttack && (
-        <div className="fixed bottom-4 left-1/2 -translate-x-1/2 bg-slate-800 px-4 py-2 rounded-lg flex gap-2 items-center">
-          <span className="text-amber-400">宣言攻击中 — 被攻击方可允许/无效，攻击方可取消：</span>
-          <button className="px-3 py-1 bg-green-600 rounded hover:bg-green-500 text-white" onClick={confirmAttack}>
-            允许攻击
+        <div className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 field-popup bg-slate-800 px-2.5 py-1.5 rounded flex gap-1.5 items-center flex-wrap z-30 shadow-lg">
+          <span className="text-amber-400 text-xs">宣言攻击中 — 允许/无效/取消：</span>
+          <button className="px-2 py-0.5 bg-green-600 rounded hover:bg-green-500 text-white text-xs" onClick={confirmAttack}>
+            允许
           </button>
           {(() => {
             const defHand = state.players[state.pendingAttack.defenderPlayerId]?.hand || [];
             const idx010 = defHand.findIndex((c) => String(c?.id) === "010");
             if (idx010 >= 0) {
               return (
-                <button className="px-3 py-1 bg-amber-600 rounded hover:bg-amber-500 text-white" onClick={() => negateAttackWith010(idx010)}>
-                  丢弃羽翼栗子球使攻击无效
+                <button className="px-2 py-0.5 bg-amber-600 rounded hover:bg-amber-500 text-white text-xs" onClick={() => negateAttackWith010(idx010)}>
+                  羽翼栗子球无效
                 </button>
               );
             }
             return null;
           })()}
-          <button className="px-3 py-1 bg-red-600 rounded hover:bg-red-500 text-white" onClick={cancelPendingAttack}>
-            取消攻击
+          <button className="px-2 py-0.5 bg-red-600 rounded hover:bg-red-500 text-white text-xs" onClick={cancelPendingAttack}>
+            取消
           </button>
         </div>
       )}
       {attackMode && !state.pendingAttack && (
-        <div className="fixed bottom-4 left-1/2 -translate-x-1/2 bg-slate-800 px-4 py-2 rounded-lg flex gap-2 items-center">
-          <span className="text-amber-400">选择攻击目标</span>
-          {!opponent.monsterZones.some((m) => m && m.position === "attack") && (
+        <div className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 field-popup bg-slate-800 px-2.5 py-1.5 rounded flex gap-1.5 items-center z-30 shadow-lg">
+          <span className="text-amber-400 text-xs">选择攻击目标</span>
+          {!opponent.monsterZones.some((m) => m !== null) && (
             <button
-              className="px-3 py-1 bg-green-600 rounded hover:bg-green-500 text-white"
+              className="px-2 py-0.5 bg-green-600 rounded hover:bg-green-500 text-white text-xs"
               onClick={directAttack}
             >
               直接攻击
             </button>
           )}
           <button
-            className="px-3 py-1 bg-red-600 rounded hover:bg-red-500 text-white"
+            className="px-2 py-0.5 bg-red-600 rounded hover:bg-red-500 text-white text-xs"
             onClick={cancelPendingAttack}
           >
             取消

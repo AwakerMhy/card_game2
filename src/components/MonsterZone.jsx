@@ -5,15 +5,18 @@ const ZONE_SIZE = {
   mobile: "w-[56px] h-[94px] min-h-[94px]",
 };
 
-export default function MonsterZone({ zones, onZoneClick, onZoneDrop, onViewDetails, selectedZone, playable, tributeSelection, summonTargetZones, mobileLayout = false }) {
+export default function MonsterZone({ zones, onZoneClick, onZoneDrop, onViewDetails, selectedZone, playable, tributeSelection, summonTargetZones, equipHighlightZoneIndex, mobileLayout = false }) {
   const sizeClass = mobileLayout ? ZONE_SIZE.mobile : ZONE_SIZE.default;
   return (
     <div className="flex gap-0.5 justify-center">
       {zones.map((zone, index) => {
         const isSummonTarget = summonTargetZones?.includes(index);
+        const isEquipHighlight = equipHighlightZoneIndex === index;
         const zoneClass = isSummonTarget
           ? `${sizeClass} border-2 border-dashed border-green-500 rounded bg-green-900/30 flex items-center justify-center overflow-visible cursor-pointer hover:bg-green-900/50 touch-manipulation`
-          : `${sizeClass} border-2 border-dashed border-amber-600 rounded bg-amber-900/20 flex items-center justify-center overflow-visible touch-manipulation`;
+          : isEquipHighlight
+            ? `${sizeClass} border-2 border-dashed border-cyan-500 rounded bg-cyan-900/30 flex items-center justify-center overflow-visible touch-manipulation ring-2 ring-cyan-500`
+            : `${sizeClass} border-2 border-dashed border-amber-600 rounded bg-amber-900/20 flex items-center justify-center overflow-visible touch-manipulation`;
         return (
         <div
           key={index}

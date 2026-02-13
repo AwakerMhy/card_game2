@@ -39,8 +39,6 @@ export default function PlayerArea({
   onMonsterZoneClick,
   onSpellTrapZoneClick,
   onHandCardClick,
-  onActivateSpell,
-  canActivateSpell,
   onDragStart,
   onMonsterZoneDrop,
   onSpellTrapZoneDrop,
@@ -50,19 +48,13 @@ export default function PlayerArea({
   tributeIndices = [],
   summonTargetZones,
   selectedSpellTrapZone,
+  spellTrapHighlightIndices,
   selectedHandCard,
   playableHandCards,
+  equipHighlightZoneIndex,
 }) {
   const handContent = !isOpponent ? (
     <div className="flex flex-col gap-0.5 flex-1 min-w-0">
-      {canActivateSpell && onActivateSpell && (
-        <button
-          className="px-2 py-1 bg-emerald-600 text-white rounded hover:bg-emerald-500 text-xs self-center shrink-0 touch-manipulation"
-          onClick={onActivateSpell}
-        >
-          发动魔法
-        </button>
-      )}
       <HandDisplay
         cards={hand}
         onCardClick={onHandCardClick}
@@ -99,6 +91,7 @@ export default function PlayerArea({
       onZoneDrop={onSpellTrapZoneDrop}
       onViewDetails={onViewDetails}
       selectedZone={selectedSpellTrapZone}
+      highlightEmptyIndices={spellTrapHighlightIndices}
       mobileLayout={mobileLayout}
     />
     </div>
@@ -114,6 +107,7 @@ export default function PlayerArea({
       selectedZone={selectedMonsterZone}
       tributeSelection={tributeIndices}
       summonTargetZones={summonTargetZones}
+      equipHighlightZoneIndex={equipHighlightZoneIndex}
       mobileLayout={mobileLayout}
     />
     </div>

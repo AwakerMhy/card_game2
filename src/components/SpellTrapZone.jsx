@@ -5,32 +5,48 @@ const ZONE_SIZE = {
   mobile: "w-[56px] h-[94px] min-h-[94px]",
 };
 
-export default function SpellTrapZone({ zones, onZoneClick, onZoneDrop, onViewDetails, selectedZone, mobileLayout = false }) {
+export default function SpellTrapZone({ zones, onZoneClick, onZoneDrop, onViewDetails, selectedZone, highlightEmptyIndices, mobileLayout = false }) {
   const sizeClass = mobileLayout ? ZONE_SIZE.mobile : ZONE_SIZE.default;
   return (
     <div className="flex gap-0.5 justify-center">
-      {zones.map((zone, index) => (
+      {zones.map((zone, index) => {
+        const isHighlightEmpty = highlightEmptyIndices?.includes(index) && zone === null;
+        const zoneClass = isHighlightEmpty
+          ? `${sizeClass} border-2 border-dashed border-green-500 rounded bg-green-900/30 flex items-center justify-center overflow-visible cursor-pointer hover:bg-green-900/50 touch-manipulation relative`
+          : `${sizeClass} border-2 border-dashed rounded flex items-center justify-center overflow-visible touch-manipulation relative ${
+              selectedZone === index && zone?.equippedToMonsterZoneIndex != null
+                ? "border-cyan-500 bg-cyan-900/20 ring-2 ring-cyan-500"
+                : "border-emerald-600 bg-emerald-900/20"
+            }`;
+        return (
         <div
           key={index}
-          className={`${sizeClass} border-2 border-dashed border-emerald-600 rounded bg-emerald-900/20 flex items-center justify-center overflow-visible touch-manipulation`}
+          className={zoneClass}
           onClick={() => onZoneClick && onZoneClick(index)}
           onDragOver={(e) => e.preventDefault()}
           onDrop={(e) => onZoneDrop && onZoneDrop(e, index)}
+          data-zone-index={index}
         >
           {zone ? (
-            <Card
-              card={zone}
-              faceDown={zone.faceDown}
-              size={mobileLayout ? "sm" : "md"}
-              selected={selectedZone === index}
-              onClick={() => onZoneClick && onZoneClick(index)}
-              onViewDetails={zone.faceDown ? undefined : onViewDetails}
-            />
+            <>
+              <Card
+                card={zone}
+                faceDown={zone.faceDown}
+                size={mobileLayout ? "sm" : "md"}
+                selected={selectedZone === index}
+                onClick={() => onZoneClick && onZoneClick(index)}
+                onViewDetails={zone.faceDown ? undefined : onViewDetails}
+              />
+              {selectedZone === index && zone.equippedToMonsterZoneIndex != null && (
+                <span className="absolute -top-1 left-1/2 -translate-x-1/2 text-[10px] text-cyan-400 whitespace-nowrap">装备→</span>
+              )}
+            </>
           ) : (
-            <span className="text-emerald-600/50 text-[10px]">魔陷</span>
+            <span className={isHighlightEmpty ? "text-green-500/80 text-[10px]" : "text-emerald-600/50 text-[10px]"}>魔陷</span>
           )}
         </div>
-      ))}
+        );
+      })}
     </div>
   );
 }

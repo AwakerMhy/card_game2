@@ -3,12 +3,14 @@
 import {
   drawCard,
   placeMonsterZone,
+  placeSpellTrapZone,
   sendToGraveyard,
   clearMonsterZone,
   clearSpellTrapZone,
   setLP,
   removeFromHandByIndex,
   searchDeckAddToHand,
+  getEmptySpellTrapZoneIndex,
 } from "./gameState.js";
 import { applyGraveyardEffect } from "./monsterEffects.js";
 
@@ -87,7 +89,9 @@ export function resolveSpellEffect(state, playerId, card, target) {
         graveMonster = player.graveyard.find((c) => c.type === "monster");
       }
       if (!graveMonster) return state;
-      const emptyZone = player.monsterZones.findIndex((z) => !z);
+      const emptyZone = target?.zoneIndex != null && player.monsterZones[target.zoneIndex] === null
+        ? target.zoneIndex
+        : player.monsterZones.findIndex((z) => !z);
       if (emptyZone < 0) return state;
       const owner = state.players[graveOwnerId];
       const newGraveyard = owner.graveyard.filter((c) => c.instanceId !== graveMonster.instanceId);
@@ -129,7 +133,19 @@ export function resolveSpellEffect(state, playerId, card, target) {
     }
 
     case "105": {
-      return { ...state, lightSwordActive: playerId };
+      const player = state.players[playerId];
+      const spellZoneIndex = target?.spellZoneIndex != null && !player.spellTrapZones[target.spellZoneIndex]
+        ? target.spellZoneIndex
+        : getEmptySpellTrapZoneIndex(player);
+      if (spellZoneIndex < 0) return state;
+      const oppId = playerId === "player1" ? "player2" : "player1";
+      let s = placeSpellTrapZone(state, playerId, spellZoneIndex, card, false);
+      s = {
+        ...s,
+        lightSwordActive: oppId,
+        lightSwordCard: { controllerPlayerId: playerId, zoneIndex: spellZoneIndex, turnsRemaining: 3 },
+      };
+      return s;
     }
 
     case "106": {
@@ -179,8 +195,10 @@ export function resolveSpellEffect(state, playerId, card, target) {
       }
       if (!graveMonster) graveMonster = player.graveyard.find((c) => c.type === "monster");
       if (!graveMonster) return s;
-      const emptyZone = player.monsterZones.findIndex((z) => !z);
-      if (emptyZone < 0) return s;
+      const monsterZoneIndex = target?.zoneIndex != null && player.monsterZones[target.zoneIndex] === null
+        ? target.zoneIndex
+        : player.monsterZones.findIndex((z) => !z);
+      if (monsterZoneIndex < 0) return s;
       const newGraveyard = player.graveyard.filter((c) => c.instanceId !== graveMonster.instanceId);
       s = {
         ...s,
@@ -189,7 +207,16 @@ export function resolveSpellEffect(state, playerId, card, target) {
           [playerId]: { ...player, graveyard: newGraveyard },
         },
       };
-      return placeMonsterZone(s, playerId, emptyZone, graveMonster, "attack");
+      s = placeMonsterZone(s, playerId, monsterZoneIndex, graveMonster, "attack");
+      const spellZoneIndex = target?.spellZoneIndex != null && !player.spellTrapZones[target.spellZoneIndex]
+        ? target.spellZoneIndex
+        : getEmptySpellTrapZoneIndex(s.players[playerId]);
+      if (spellZoneIndex >= 0) {
+        s = placeSpellTrapZone(s, playerId, spellZoneIndex, card, false, monsterZoneIndex);
+      } else {
+        s = sendToGraveyard(s, playerId, card);
+      }
+      return s;
     }
 
     case "111": {
@@ -216,7 +243,11 @@ export function resolveSpellEffect(state, playerId, card, target) {
     case "112": {
       const player = state.players[playerId];
       if (player.hand.length === 0) return state;
-      const { newState, card: discarded } = removeFromHandByIndex(state, playerId, 0);
+      const idx = target?.discardInstanceId != null
+        ? player.hand.findIndex((c) => c.instanceId === target.discardInstanceId)
+        : 0;
+      if (idx < 0) return state;
+      const { newState, card: discarded } = removeFromHandByIndex(state, playerId, idx);
       if (!discarded) return state;
       let s = sendToGraveyard(newState, playerId, discarded);
       s = applyGraveyardEffect(s, playerId, discarded);
@@ -291,6 +322,25 @@ export function needsTarget(card) {
   if (!card) return false;
   const id = String(card.id ?? "");
   return ["102", "106", "109", "110", "111"].includes(id);
+}
+
+/** Whether this spell needs to choose an empty S/T zone for placement (e.g. 105 光之护封剑) */
+export function needsZoneForPlacement(card) {
+  if (!card) return false;
+  return String(card.id ?? "") === "105";
+}
+
+/** Whether this spell/trap requires discarding hand card(s) as cost (e.g. 112 闪电漩涡) */
+export function needsDiscard(card) {
+  if (!card) return false;
+  return String(card.id ?? "") === "112";
+}
+
+/** How many hand cards to discard for needsDiscard cards */
+export function getDiscardCount(card) {
+  if (!card) return 0;
+  if (String(card.id ?? "") === "112") return 1;
+  return 0;
 }
 
 /** Target type: 'graveyard' (102 both graves, 110 own grave), 'spellTrap' (106), 'opponentMonster' (109, 111) */

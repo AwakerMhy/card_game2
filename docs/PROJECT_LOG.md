@@ -411,6 +411,33 @@ src/
 
 ---
 
+### 改动 16：v1.3.0 版本发布
+
+**日期**：2025-02-12
+
+**光之护封剑 (105) 完整实现**
+- 发动时需选择魔陷格放置（弹框提示，高亮可选空格）
+- 表侧留场 3 回合，对方回合结束时计数减一，3 回合后自动破坏送墓
+- 封锁期间对方无法宣言攻击（含对怪兽攻击与直接攻击）
+- AI 被封锁时跳过战斗阶段
+
+**闪电漩涡 (112) 舍弃手牌选择**
+- 发动时弹框选择要舍弃的 1 张手牌，不再随机删除
+- 新增 `HandSelectModal` 组件，支持从手牌/场上发动
+
+**祭品召唤放置格扩展**
+- 祭品召唤时可选择祭品格或场上任意空闲格放置怪兽
+
+**涉及文件**
+- `src/game-logic/gameState.js`（lightSwordCard）
+- `src/game-logic/spellEffects.js`（needsZoneForPlacement、needsDiscard、105/112 效果）
+- `src/game-logic/aiOpponent.js`（光剑封锁时跳过攻击）
+- `src/components/GameBoard.jsx`（pendingLightSwordZone、pendingDiscardSelect、END_TURN 光剑计数、summonTargetZones）
+- `src/components/HandSelectModal.jsx`（新增）
+- `src/components/PlayerArea.jsx`、`src/components/SpellTrapZone.jsx`（高亮、spellTrapHighlightIndices）
+
+---
+
 ### 改动 15：v1.2.0 版本发布
 
 **日期**：2025-02-12
@@ -456,3 +483,4 @@ src/
 | 1.0.0 | 2025-02-12 | 全卡牌效果实现（魔法 101–113、陷阱 114–115）、怪兽效果（002/007/010/011/012/018）、光之护封剑/心变/圣防护罩等、vs AI 固定视角（不随回合切换） |
 | 1.1.0 | 2025-02-12 | 召唤先选表示再选格子、里侧守备召唤可自由选格；心变还怪仅按 instanceId 归还；伤害数字显示在受伤玩家血条附近 |
 | 1.2.0 | 2025-02-12 | 新增「适配移动端」选项，紧凑布局与触摸优化，选项持久化 |
+| 1.3.0 | 2025-02-12 | 光之护封剑选择魔陷格、留场 3 回合、封锁直接攻击；闪电漩涡弹框选舍弃手牌；祭品召唤可选任意空格 |

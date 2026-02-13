@@ -65,6 +65,7 @@ export function getAIAction(state) {
 
   // Battle phase: direct attack first, then best target
   if (state.currentPhase === "battle") {
+    if (state.lightSwordActive === aiPlayerId) return { type: "NEXT_PHASE" };
     const attacked = state.attackedMonsters?.[aiPlayerId] || [];
     const atkMonsters = ai.monsterZones
       .map((z, i) => (z && z.position === "attack" && !attacked.includes(i) ? { zone: i, card: z } : null))
@@ -76,11 +77,11 @@ export function getAIAction(state) {
     const humanDefMonsters = human.monsterZones
       .map((z, i) => (z && z.position === "defense" ? { zone: i, card: z } : null))
       .filter(Boolean);
-    const humanHasAtk = humanAtkMonsters.length > 0;
+    const humanHasAnyMonsters = human.monsterZones.some((m) => m !== null);
 
     if (atkMonsters.length > 0) {
       const attacker = atkMonsters[0];
-      if (!humanHasAtk) {
+      if (!humanHasAnyMonsters) {
         return {
           type: "BATTLE",
           attackerPlayerId: aiPlayerId,

@@ -66,6 +66,7 @@ export function createInitialState() {
     winner: null,
     attackedMonsters: { player1: [], player2: [] },
     lightSwordActive: null,
+    lightSwordCard: null,
     borrowedMonsters: [],
     pendingAttack: null,
     changedPositionThisTurn: { player1: [], player2: [] },
@@ -220,11 +221,13 @@ export function placeMonsterZone(state, playerId, zoneIndex, card, position = "a
   };
 }
 
-// Place card in spell/trap zone
-export function placeSpellTrapZone(state, playerId, zoneIndex, card, faceDown = false) {
+// Place card in spell/trap zone (equippedToMonsterZoneIndex for equip spells like 过早的埋葬)
+export function placeSpellTrapZone(state, playerId, zoneIndex, card, faceDown = false, equippedToMonsterZoneIndex = null) {
   const player = state.players[playerId];
   const newZones = [...player.spellTrapZones];
-  newZones[zoneIndex] = { ...card, faceDown };
+  const slot = { ...card, faceDown };
+  if (equippedToMonsterZoneIndex != null) slot.equippedToMonsterZoneIndex = equippedToMonsterZoneIndex;
+  newZones[zoneIndex] = slot;
   return {
     ...state,
     players: {
