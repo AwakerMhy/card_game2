@@ -35,7 +35,9 @@ export default function GraveyardModal({ cards, label, onClose, onViewCard }) {
                 className="cursor-pointer"
               >
                 <Card
-                  card={card}
+                  card={{ ...card, faceDown: false }}
+                  faceDown={false}
+                  upright
                   size="md"
                   onViewDetails={onViewCard ? () => onViewCard(card) : undefined}
                 />

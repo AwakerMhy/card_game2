@@ -68,12 +68,14 @@ function getFirstFaceUpMonster(state, opponentId) {
   return -1;
 }
 
-export function resolveSpellEffect(state, playerId, card, target) {
+export function resolveSpellEffect(state, playerId, card, target, optLogs) {
   const id = String(card.id || card.name || "");
   const oppId = playerId === "player1" ? "player2" : "player1";
+  const log = (text) => { if (optLogs) optLogs.push({ text, source: "player" }); };
 
   switch (id) {
     case "101":
+      log("贪欲之壶：抽 2 张牌");
       return drawCard(drawCard(state, playerId), playerId);
 
     case "102": {
@@ -102,10 +104,12 @@ export function resolveSpellEffect(state, playerId, card, target) {
           [graveOwnerId]: { ...owner, graveyard: newGraveyard },
         },
       };
+      log(`死者苏生：从墓地特殊召唤 ${graveMonster?.name || "怪兽"}`);
       return placeMonsterZone(newState, playerId, emptyZone, graveMonster, "attack");
     }
 
     case "103": {
+      log("黑洞：双方场上所有怪兽破坏，送入墓地");
       let s1 = state;
       for (const pid of ["player1", "player2"]) {
         for (let i = 4; i >= 0; i--) {
@@ -120,6 +124,8 @@ export function resolveSpellEffect(state, playerId, card, target) {
     }
 
     case "104": {
+      const destroyed = state.players[oppId].monsterZones.filter(Boolean).map((m) => m?.name).join("、");
+      log(`雷击：破坏对方场上所有怪兽${destroyed ? `（${destroyed}）送入墓地` : ""}`);
       let s2 = state;
       for (let i = 4; i >= 0; i--) {
         const m = s2.players[oppId].monsterZones[i];
@@ -133,6 +139,7 @@ export function resolveSpellEffect(state, playerId, card, target) {
     }
 
     case "105": {
+      log("光之护封剑：对方 3 回合内不能宣言攻击");
       const player = state.players[playerId];
       const spellZoneIndex = target?.spellZoneIndex != null && !player.spellTrapZones[target.spellZoneIndex]
         ? target.spellZoneIndex
@@ -155,10 +162,13 @@ export function resolveSpellEffect(state, playerId, card, target) {
       }
       if (!stTarget) stTarget = getFirstSpellTrapOnField(state, playerId);
       if (!stTarget) return state;
+      const stCard = state.players[stTarget.playerId]?.spellTrapZones[stTarget.zoneIndex];
+      log(`旋风：破坏 ${stCard?.name || "魔法·陷阱"}，送入墓地`);
       return destroySpellTrapAt(state, stTarget.playerId, stTarget.zoneIndex);
     }
 
     case "107":
+      log("大风暴：破坏双方场上所有魔法·陷阱");
       return destroyAllSpellTraps(state);
 
     case "108":
@@ -177,6 +187,7 @@ export function resolveSpellEffect(state, playerId, card, target) {
       const monster = opp.monsterZones[fromZone];
       let s = clearMonsterZone(state, oppId, fromZone);
       s = placeMonsterZone(s, playerId, myEmpty, monster, monster.position || "attack");
+      log(`心变：获得对方 ${monster?.name || "怪兽"} 的控制权`);
       return {
         ...s,
         borrowedMonsters: [
@@ -195,6 +206,7 @@ export function resolveSpellEffect(state, playerId, card, target) {
       }
       if (!graveMonster) graveMonster = player.graveyard.find((c) => c.type === "monster");
       if (!graveMonster) return s;
+      log(`过早的埋葬：支付 800 LP，从墓地特殊召唤 ${graveMonster?.name || "怪兽"}，装备于此卡`);
       const monsterZoneIndex = target?.zoneIndex != null && player.monsterZones[target.zoneIndex] === null
         ? target.zoneIndex
         : player.monsterZones.findIndex((z) => !z);
@@ -231,6 +243,7 @@ export function resolveSpellEffect(state, playerId, card, target) {
       const monster = player.monsterZones[zoneIndex];
       const newZones = [...player.monsterZones];
       newZones[zoneIndex] = { ...monster, position: "defense", faceDown: true };
+      log(`月之书：将对方 ${monster?.name || "怪兽"} 变为里侧守备表示`);
       return {
         ...state,
         players: {
@@ -251,6 +264,8 @@ export function resolveSpellEffect(state, playerId, card, target) {
       if (!discarded) return state;
       let s = sendToGraveyard(newState, playerId, discarded);
       s = applyGraveyardEffect(s, playerId, discarded);
+      const destroyed112 = state.players[oppId].monsterZones.filter(Boolean).map((m) => m?.name);
+      log(`闪电漩涡：舍弃 ${discarded?.name || "手牌"}，破坏对方场上所有表侧怪兽${destroyed112.length ? `（${destroyed112.join("、")}）送入墓地` : ""}`);
       for (let i = 4; i >= 0; i--) {
         const m = s.players[oppId].monsterZones[i];
         if (m) {
@@ -266,6 +281,7 @@ export function resolveSpellEffect(state, playerId, card, target) {
       const idx = getLowestAtkFaceUpMonster(state, oppId);
       if (idx < 0) return state;
       const m = state.players[oppId].monsterZones[idx];
+      log(`地割：破坏对方攻击力最低的 ${m?.name || "怪兽"}，送入墓地`);
       let s = sendToGraveyard(state, oppId, m);
       s = applyGraveyardEffect(s, oppId, m);
       return clearMonsterZone(s, oppId, idx);
@@ -275,6 +291,10 @@ export function resolveSpellEffect(state, playerId, card, target) {
       return state;
 
     case "115": {
+      const destroyed115 = state.players[oppId].monsterZones
+        .filter((m) => m && m.position === "attack")
+        .map((m) => m?.name);
+      if (destroyed115.length) log(`圣防护罩：破坏对方所有攻击表示怪兽（${destroyed115.join("、")}）送入墓地`);
       let s = state;
       for (let i = 4; i >= 0; i--) {
         const m = s.players[oppId].monsterZones[i];
@@ -341,6 +361,26 @@ export function getDiscardCount(card) {
   if (!card) return 0;
   if (String(card.id ?? "") === "112") return 1;
   return 0;
+}
+
+/** Get face-down traps that can be activated when opponent declares attack (e.g. 115 圣防护罩) */
+export function getActivatableTrapsOnAttackDeclared(state) {
+  if (!state.pendingAttack) return [];
+  const defenderId = state.pendingAttack.defenderPlayerId;
+  if (state.currentPhase !== "battle") return [];
+  const zones = state.players[defenderId]?.spellTrapZones ?? [];
+  const turnCount = state.turnCount ?? 1;
+  const result = [];
+  zones.forEach((slot, zoneIndex) => {
+    if (!slot || !slot.faceDown || slot.type !== "trap") return;
+    const setOnTurn = slot.setOnTurn ?? 0;
+    if (setOnTurn >= turnCount) return; // cannot activate the turn it was set
+    const id = String(slot.id ?? "");
+    if (id === "115" && canActivateFromFieldInPhase(slot, "battle")) {
+      result.push({ playerId: defenderId, zoneIndex, card: slot });
+    }
+  });
+  return result;
 }
 
 /** Target type: 'graveyard' (102 both graves, 110 own grave), 'spellTrap' (106), 'opponentMonster' (109, 111) */

@@ -26,10 +26,26 @@ export function buildStarterDeck() {
   return shuffle(deck);
 }
 
-// Create initial game state
-export function createInitialState() {
-  const player1Deck = buildStarterDeck();
-  const player2Deck = buildStarterDeck();
+// Build deck from array of card ids
+export function buildDeckFromIds(deckIds) {
+  if (!deckIds?.length) return buildStarterDeck();
+  const deck = deckIds
+    .map((id) => {
+      const card = CARD_DATABASE.find((c) => c.id === id);
+      return card ? { ...card, instanceId: crypto.randomUUID() } : null;
+    })
+    .filter(Boolean);
+  return shuffle(deck);
+}
+
+// Create initial game state. options: { player1DeckIds?: string[], player2DeckIds?: string[] }
+export function createInitialState(options = {}) {
+  const player1Deck = options.player1DeckIds
+    ? buildDeckFromIds(options.player1DeckIds)
+    : buildStarterDeck();
+  const player2Deck = options.player2DeckIds
+    ? buildDeckFromIds(options.player2DeckIds)
+    : buildStarterDeck();
 
   const player1Hand = player1Deck.splice(0, STARTING_HAND_SIZE);
   const player2Hand = player2Deck.splice(0, STARTING_HAND_SIZE);
@@ -70,6 +86,8 @@ export function createInitialState() {
     borrowedMonsters: [],
     pendingAttack: null,
     changedPositionThisTurn: { player1: [], player2: [] },
+    pendingLogs: [],
+    deckConfig: options.player1DeckIds != null ? { player1DeckIds: options.player1DeckIds, player2DeckIds: options.player2DeckIds } : null,
   };
 }
 
@@ -204,11 +222,13 @@ export function sendToGraveyard(state, playerId, card) {
   };
 }
 
-// Place card in monster zone (position: "attack"|"defense", faceDown for 里侧守备)
-export function placeMonsterZone(state, playerId, zoneIndex, card, position = "attack", faceDown = false) {
+// Place card in monster zone (position: "attack"|"defense", faceDown for 里侧守备, setOnTurn for 里侧怪兽下回合才能翻开)
+export function placeMonsterZone(state, playerId, zoneIndex, card, position = "attack", faceDown = false, setOnTurn = null) {
   const player = state.players[playerId];
   const newZones = [...player.monsterZones];
-  newZones[zoneIndex] = { ...card, position, faceDown: !!faceDown };
+  const slot = { ...card, position, faceDown: !!faceDown };
+  if (faceDown && setOnTurn != null) slot.setOnTurn = setOnTurn;
+  newZones[zoneIndex] = slot;
   return {
     ...state,
     players: {
@@ -221,12 +241,13 @@ export function placeMonsterZone(state, playerId, zoneIndex, card, position = "a
   };
 }
 
-// Place card in spell/trap zone (equippedToMonsterZoneIndex for equip spells like 过早的埋葬)
-export function placeSpellTrapZone(state, playerId, zoneIndex, card, faceDown = false, equippedToMonsterZoneIndex = null) {
+// Place card in spell/trap zone (equippedToMonsterZoneIndex for equip spells like 过早的埋葬, setOnTurn for face-down)
+export function placeSpellTrapZone(state, playerId, zoneIndex, card, faceDown = false, equippedToMonsterZoneIndex = null, setOnTurn = null) {
   const player = state.players[playerId];
   const newZones = [...player.spellTrapZones];
   const slot = { ...card, faceDown };
   if (equippedToMonsterZoneIndex != null) slot.equippedToMonsterZoneIndex = equippedToMonsterZoneIndex;
+  if (faceDown && setOnTurn != null) slot.setOnTurn = setOnTurn;
   newZones[zoneIndex] = slot;
   return {
     ...state,
@@ -240,15 +261,34 @@ export function placeSpellTrapZone(state, playerId, zoneIndex, card, faceDown = 
   };
 }
 
-// Clear monster zone
-export function clearMonsterZone(state, playerId, zoneIndex) {
+// Destroy equip spells (e.g. 过早的埋葬) when equipped monster leaves the field
+function destroyEquipSpellsForMonsterZone(state, playerId, zoneIndex) {
   const player = state.players[playerId];
+  if (!player) return state;
+  let s = state;
+  const zones = player.spellTrapZones;
+  for (let i = 0; i < zones.length; i++) {
+    const slot = zones[i];
+    if (slot && slot.equippedToMonsterZoneIndex === zoneIndex && String(slot.id) === "110") {
+      const { newState, card } = clearSpellTrapZone(s, playerId, i);
+      s = card ? sendToGraveyard(newState, playerId, card) : newState;
+      const logSource = playerId === "player1" ? "player" : "ai";
+      s = { ...s, pendingLogs: [...(s.pendingLogs || []), { text: "过早的埋葬 因装备怪兽离场送入墓地", source: logSource }] };
+    }
+  }
+  return s;
+}
+
+// Clear monster zone (also destroys 过早的埋葬 if equipped to this monster)
+export function clearMonsterZone(state, playerId, zoneIndex) {
+  let s = destroyEquipSpellsForMonsterZone(state, playerId, zoneIndex);
+  const player = s.players[playerId];
   const newZones = [...player.monsterZones];
   newZones[zoneIndex] = null;
   return {
-    ...state,
+    ...s,
     players: {
-      ...state.players,
+      ...s.players,
       [playerId]: {
         ...player,
         monsterZones: newZones,

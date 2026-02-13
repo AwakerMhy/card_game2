@@ -1,4 +1,4 @@
-import { useReducer, useCallback, useState, useEffect } from "react";
+import { useReducer, useCallback, useState, useEffect, useRef } from "react";
 import PlayerArea, { DeckGraveyardRow } from "./PlayerArea.jsx";
 import PhaseIndicator, { PHASES } from "./PhaseIndicator.jsx";
 import DamageDisplay from "./DamageDisplay.jsx";
@@ -25,11 +25,9 @@ import {
 import { applyOnSummon, applyGraveyardEffect } from "../game-logic/monsterEffects.js";
 import { canNormalSummon, getTributeCount } from "../game-logic/summonValidator.js";
 import { calculateBattle } from "../game-logic/battleCalculator.js";
-import { resolveSpellEffect, hasSpellEffect, hasTrapEffect, canActivateFromField, canActivateFromFieldInPhase, needsTarget, needsZoneForPlacement, needsDiscard, getSpellTargetType } from "../game-logic/spellEffects.js";
+import { resolveSpellEffect, hasSpellEffect, hasTrapEffect, canActivateFromField, canActivateFromFieldInPhase, needsTarget, needsZoneForPlacement, needsDiscard, getSpellTargetType, getActivatableTrapsOnAttackDeclared } from "../game-logic/spellEffects.js";
 import { getAIAction } from "../game-logic/aiOpponent.js";
 import { playDraw, playSummon, playAttack, playDamage, playSet, playPhase } from "../utils/sounds.js";
-
-const initialState = createInitialState();
 
 function gameReducer(state, action) {
   switch (action.type) {
@@ -38,8 +36,9 @@ function gameReducer(state, action) {
     case "SET_PHASE":
       return { ...state, currentPhase: action.phase };
     case "SUMMON": {
-      const { playerId, card, zoneIndex, tributeIndices, position = "attack", faceDown = false } = action;
+      const { playerId, card, zoneIndex, tributeIndices, position = "attack", faceDown = false, logSource = "player" } = action;
       let newState = removeFromHand(state, playerId, card.instanceId);
+      const tributeNames = tributeIndices?.map((idx) => state.players[playerId].monsterZones[idx]?.name).filter(Boolean) || [];
       if (tributeIndices?.length) {
         tributeIndices.forEach((idx) => {
           const tributed = state.players[playerId].monsterZones[idx];
@@ -48,31 +47,40 @@ function gameReducer(state, action) {
           newState = clearMonsterZone(newState, playerId, idx);
         });
       }
-      newState = placeMonsterZone(newState, playerId, zoneIndex, card, position, faceDown);
+      newState = placeMonsterZone(newState, playerId, zoneIndex, card, position, faceDown, faceDown ? state.turnCount : null);
       newState = applyOnSummon(newState, playerId, card);
-      return { ...newState, canNormalSummon: false };
+      const logEntry = tributeNames.length
+        ? { text: `祭品召唤 ${card.name}（祭品：${tributeNames.join("、")}）→ 送入墓地`, source: logSource }
+        : { text: `召唤 ${card.name}`, source: logSource };
+      return { ...newState, canNormalSummon: false, pendingLogs: [...(state.pendingLogs || []), logEntry] };
     }
     case "SET_SPELL_TRAP": {
       const { playerId, card, zoneIndex, faceDown } = action;
       let newState = removeFromHand(state, playerId, card.instanceId);
-      return placeSpellTrapZone(newState, playerId, zoneIndex, card, faceDown);
+      return placeSpellTrapZone(newState, playerId, zoneIndex, card, faceDown, null, state.turnCount);
     }
     case "ACTIVATE_SPELL": {
-      const { playerId, card, target } = action;
+      const { playerId, card, target, logSource = "player" } = action;
+      const effectLogs = [];
       let newState = removeFromHand(state, playerId, card.instanceId);
-      newState = resolveSpellEffect(newState, playerId, card, target);
-      if (String(card.id) === "110" || String(card.id) === "105") return newState;
-      return sendToGraveyard(newState, playerId, card);
+      newState = resolveSpellEffect(newState, playerId, card, target, effectLogs);
+      const withLogs = effectLogs.length ? { ...newState, pendingLogs: [...(state.pendingLogs || []), ...effectLogs.map((e) => ({ ...e, source: logSource }))] } : newState;
+      if (String(card.id) === "110" || String(card.id) === "105") return withLogs;
+      return sendToGraveyard(withLogs, playerId, card);
     }
     case "ACTIVATE_SPELL_FROM_FIELD": {
-      const { playerId, zoneIndex, target } = action;
+      const { playerId, zoneIndex, target, logSource = "player" } = action;
       const { newState: clearedState, card } = clearSpellTrapZone(state, playerId, zoneIndex);
       if (!card || (card.type !== "spell" && card.type !== "trap")) return state;
       if (!canActivateFromField(card)) return state;
       const targetWithSpellZone = (String(card.id) === "110" || String(card.id) === "105") ? { ...target, spellZoneIndex: zoneIndex } : target;
-      let newState = resolveSpellEffect(clearedState, playerId, card, targetWithSpellZone);
-      if (String(card.id) === "110" || String(card.id) === "105") return newState;
-      return sendToGraveyard(newState, playerId, card);
+      const effectLogs = [];
+      let newState = resolveSpellEffect(clearedState, playerId, card, targetWithSpellZone, effectLogs);
+      const withLogs = effectLogs.length ? { ...newState, pendingLogs: [...(state.pendingLogs || []), ...effectLogs.map((e) => ({ ...e, source: logSource }))] } : newState;
+      if (String(card.id) === "110" || String(card.id) === "105") return withLogs;
+      const result = sendToGraveyard(withLogs, playerId, card);
+      if (card.type === "trap" && state.pendingAttack) return { ...result, pendingAttack: null };
+      return result;
     }
     case "ADD_TO_CHAIN": {
       const { card, playerId } = action;
@@ -114,7 +122,9 @@ function gameReducer(state, action) {
       let newState = removeFromHandByIndex(state, defenderPlayerId, handIndex).newState;
       newState = sendToGraveyard(newState, defenderPlayerId, card);
       newState = applyGraveyardEffect(newState, defenderPlayerId, card);
-      return { ...newState, pendingAttack: null };
+      const logSource = defenderPlayerId === "player1" ? "player" : "ai";
+      const logEntry = { text: `丢弃 ${card?.name || "羽翼栗子球"}，攻击无效`, source: logSource };
+      return { ...newState, pendingAttack: null, pendingLogs: [...(state.pendingLogs || []), logEntry] };
     }
     case "BATTLE": {
       const { attackerPlayerId, attackerZoneIndex, defenderPlayerId, defenderZoneIndex } = action;
@@ -137,10 +147,12 @@ function gameReducer(state, action) {
       if (defenderDamageToApply > 0) {
         const kuribohIdx = newState.players[defenderPlayerId].hand.findIndex((c) => String(c?.id) === "007");
         if (kuribohIdx >= 0) {
-          const { newState: s2, card: _ } = removeFromHandByIndex(newState, defenderPlayerId, kuribohIdx);
-          newState = sendToGraveyard(s2, defenderPlayerId, _);
-          newState = applyGraveyardEffect(newState, defenderPlayerId, _);
+          const { newState: s2, card: kuriboh } = removeFromHandByIndex(newState, defenderPlayerId, kuribohIdx);
+          newState = sendToGraveyard(s2, defenderPlayerId, kuriboh);
+          newState = applyGraveyardEffect(newState, defenderPlayerId, kuriboh);
           defenderDamageToApply = 0;
+          const kLogSource = defenderPlayerId === "player1" ? "player" : "ai";
+          newState = { ...newState, pendingLogs: [...(newState.pendingLogs || []), { text: `舍弃 ${kuriboh?.name || "栗子球"}，战斗伤害变为 0`, source: kLogSource }] };
         }
       }
 
@@ -163,6 +175,8 @@ function gameReducer(state, action) {
       if (defender?.id === "018" && !result.defenderDestroys) {
         newState = clearMonsterZone(newState, attackerPlayerId, attackerZoneIndex);
         newState = addCardToHand(newState, attackerPlayerId, attacker);
+        const wLogSource = defenderPlayerId === "player1" ? "player" : "ai";
+        newState = { ...newState, pendingLogs: [...(newState.pendingLogs || []), { text: `幻影墙效果：${attacker?.name || "攻击怪兽"} 返回持有者手牌`, source: wLogSource }] };
       }
 
       if (newState.players[defenderPlayerId].lp <= 0) {
@@ -197,16 +211,24 @@ function gameReducer(state, action) {
     }
     case "CLEAR_DAMAGE":
       return { ...state, lastDamage: null, lastDamageTarget: null, lastBattleLog: null };
+    case "CLEAR_PENDING_LOGS":
+      return { ...state, pendingLogs: [] };
     case "CHANGE_POSITION": {
-      const { playerId, zoneIndex, newPosition } = action;
+      const { playerId, zoneIndex, newPosition, logSource = "player" } = action;
       const player = state.players[playerId];
       const zone = player.monsterZones[zoneIndex];
       if (!zone) return state;
       const changed = state.changedPositionThisTurn?.[playerId] ?? [];
       if (changed.includes(zoneIndex)) return state;
+      const turnCount = state.turnCount ?? 1;
+      if (zone.faceDown && (zone.setOnTurn ?? 0) >= turnCount) return state;
       const nextPosition = newPosition ?? (zone.position === "attack" ? "defense" : "attack");
       const newZones = [...player.monsterZones];
-      newZones[zoneIndex] = { ...zone, position: nextPosition };
+      const flipped = zone.faceDown ? { ...zone, position: nextPosition, faceDown: false } : { ...zone, position: nextPosition };
+      newZones[zoneIndex] = flipped;
+      const posStr = nextPosition === "attack" ? "攻击" : "守备";
+      const flipStr = zone.faceDown ? "翻开为" : "改为";
+      const logEntry = { text: `${zone?.name || "怪兽"} ${flipStr} ${posStr} 表示`, source: logSource };
       return {
         ...state,
         players: {
@@ -217,6 +239,7 @@ function gameReducer(state, action) {
           ...state.changedPositionThisTurn,
           [playerId]: [...changed, zoneIndex],
         },
+        pendingLogs: [...(state.pendingLogs || []), logEntry],
       };
     }
     case "END_TURN": {
@@ -226,7 +249,7 @@ function gameReducer(state, action) {
         currentTurn: state.currentTurn === 1 ? 2 : 1,
         currentPhase: "draw",
         canNormalSummon: true,
-        turnCount: state.currentTurn === 2 ? state.turnCount + 1 : state.turnCount,
+        turnCount: state.turnCount + 1,
         attackedMonsters: { player1: [], player2: [] },
         borrowedMonsters: [],
         changedPositionThisTurn: { player1: [], player2: [] },
@@ -237,7 +260,12 @@ function gameReducer(state, action) {
         if (remains <= 0) {
           const { newState: ns, card: lsCard } = clearSpellTrapZone(endState, ls.controllerPlayerId, ls.zoneIndex);
           endState = lsCard ? sendToGraveyard(ns, ls.controllerPlayerId, lsCard) : ns;
-          endState = { ...endState, lightSwordActive: null, lightSwordCard: null };
+          endState = {
+            ...endState,
+            lightSwordActive: null,
+            lightSwordCard: null,
+            pendingLogs: [...(endState.pendingLogs || []), { text: `光之护封剑 3 回合结束，破坏送入墓地`, source: "player" }],
+          };
         } else {
           endState = { ...endState, lightSwordCard: { ...ls, turnsRemaining: remains }, lightSwordActive: state.lightSwordActive };
         }
@@ -251,11 +279,12 @@ function gameReducer(state, action) {
         if (!card || (b.card?.instanceId && card.instanceId !== b.card.instanceId)) continue;
         endState = clearMonsterZone(endState, b.toPlayerId, b.toZoneIndex);
         endState = placeMonsterZone(endState, b.fromPlayerId, b.fromZoneIndex, card, card.position || "attack", card.faceDown);
+        endState = { ...endState, pendingLogs: [...(endState.pendingLogs || []), { text: `心变结束：${card?.name || "怪兽"} 归还对方`, source: "player" }] };
       }
       return endState;
     }
     case "RESET":
-      return createInitialState();
+      return createInitialState(state.deckConfig || {});
     default:
       return state;
   }
@@ -263,10 +292,15 @@ function gameReducer(state, action) {
 
 const MOBILE_LAYOUT_KEY = "cardGame_mobileLayout";
 
-export default function GameBoard() {
-  const [state, dispatch] = useReducer(gameReducer, initialState);
-  const [vsAI, setVsAI] = useState(false);
+export default function GameBoard({ initialVsAI = false, initialMobileLayout, initialDeckConfig, onBackToMenu }) {
+  const [state, dispatch] = useReducer(
+    gameReducer,
+    initialDeckConfig,
+    (config) => createInitialState(config || {})
+  );
+  const [vsAI, setVsAI] = useState(initialVsAI);
   const [mobileLayout, setMobileLayout] = useState(() => {
+    if (initialMobileLayout !== undefined) return initialMobileLayout;
     try {
       return JSON.parse(localStorage.getItem(MOBILE_LAYOUT_KEY) ?? "false");
     } catch {
@@ -315,6 +349,14 @@ export default function GameBoard() {
     addLog?.(`玩家 ${state.currentTurn} 结束回合`, "player");
     dispatch({ type: "END_TURN" });
   }, [addLog, state.currentTurn]);
+
+  useEffect(() => {
+    const logs = state.pendingLogs;
+    if (logs?.length) {
+      logs.forEach((entry) => addLog?.(entry.text, entry.source));
+      dispatch({ type: "CLEAR_PENDING_LOGS" });
+    }
+  }, [state.pendingLogs]);
 
   useEffect(() => {
     const log = state.lastBattleLog;
@@ -375,6 +417,8 @@ export default function GameBoard() {
   // AI turn
   useEffect(() => {
     if (!vsAI || state.winner || state.currentTurn !== 2) return;
+    // 若 AI 已宣言攻击、防守方是人类，则等待人类响应，不继续执行
+    if (state.pendingAttack && state.pendingAttack.defenderPlayerId === "player1") return;
     const timer = setTimeout(() => {
       const action = getAIAction(state);
       // 抽牌与准备阶段由上方 useEffect 自动处理，AI 仅处理 main1/battle/main2/end
@@ -383,14 +427,19 @@ export default function GameBoard() {
       }
       if (action.type === "SUMMON") {
         playSummon();
-        addLog(`AI 召唤 ${action.card?.name}`, "ai");
-        dispatch(action);
+        dispatch({ ...action, logSource: "ai" });
+      } else if (action.type === "ACTIVATE_SPELL") {
+        playPhase();
+        dispatch({ ...action, logSource: "ai" });
       } else if (action.type === "BATTLE") {
-        playAttack();
-        const attacker = state.players.player2?.monsterZones[action.attackerZoneIndex];
-        const defender = action.defenderZoneIndex >= 0 ? state.players.player1?.monsterZones[action.defenderZoneIndex] : null;
-        addLog(defender ? `AI ${attacker?.name} 攻击 ${defender?.name}` : `AI ${attacker?.name} 直接攻击`, "ai");
-        dispatch(action);
+        addLog?.(`AI ${action.defenderZoneIndex >= 0 ? "宣言攻击" : "宣言直接攻击"}`, "ai");
+        dispatch({
+          type: "PREPARE_ATTACK",
+          attackerPlayerId: action.attackerPlayerId,
+          attackerZoneIndex: action.attackerZoneIndex,
+          defenderPlayerId: action.defenderPlayerId,
+          defenderZoneIndex: action.defenderZoneIndex,
+        });
       } else if (action.type === "NEXT_PHASE") {
         const idx = PHASES.findIndex((p) => p.id === state.currentPhase);
         if (idx >= 0 && idx < PHASES.length - 1) {
@@ -406,22 +455,75 @@ export default function GameBoard() {
       }
     }, 1300);
     return () => clearTimeout(timer);
-  }, [vsAI, state.currentTurn, state.currentPhase, state.winner, state.turnCount, state.players, addLog]);
+  }, [vsAI, state.currentTurn, state.currentPhase, state.winner, state.turnCount, state.players, state.pendingAttack, addLog]);
+
+  // 防守方无可 responding 选项（无陷阱、无010）时，自动允许攻击
+  useEffect(() => {
+    if (state.winner || !state.pendingAttack) return;
+    const traps = getActivatableTrapsOnAttackDeclared(state);
+    const defHand = state.players[state.pendingAttack.defenderPlayerId]?.hand || [];
+    const has010 = defHand.some((c) => String(c?.id) === "010");
+    if (traps.length > 0 || has010) return;
+    const timer = setTimeout(() => {
+      playAttack();
+      addLog?.(state.pendingAttack.defenderZoneIndex >= 0 ? "攻击成立" : "直接攻击成立", "player");
+      dispatch({ type: "BATTLE", ...state.pendingAttack });
+    }, vsAI && state.pendingAttack.defenderPlayerId === "player1" ? 400 : 600);
+    return () => clearTimeout(timer);
+  }, [state.pendingAttack, state.winner, state.players, vsAI, addLog]);
+
+  // AI 作为防守方时，回应攻击宣言（允许/羽翼栗子球/陷阱）
+  useEffect(() => {
+    if (!vsAI || state.winner || !state.pendingAttack) return;
+    if (state.pendingAttack.defenderPlayerId !== "player2") return;
+    const timer = setTimeout(() => {
+      const defHand = state.players.player2?.hand ?? [];
+      const idx010 = defHand.findIndex((c) => String(c?.id) === "010");
+      const activatableTraps = getActivatableTrapsOnAttackDeclared(state);
+      if (activatableTraps.length > 0) {
+        playPhase();
+        addLog?.("AI 发动陷阱卡", "ai");
+        const t = activatableTraps[0];
+        dispatch({
+          type: "ACTIVATE_SPELL_FROM_FIELD",
+          playerId: t.playerId,
+          zoneIndex: t.zoneIndex,
+          logSource: "ai",
+        });
+      } else if (idx010 >= 0) {
+        addLog?.("AI 丢弃羽翼栗子球，攻击无效", "ai");
+        dispatch({ type: "NEGATE_ATTACK", defenderPlayerId: "player2", handIndex: idx010 });
+      } else {
+        playAttack();
+        addLog?.("攻击成立", "player");
+        dispatch({ type: "BATTLE", ...state.pendingAttack });
+      }
+    }, 1000);
+    return () => clearTimeout(timer);
+  }, [vsAI, state.pendingAttack, state.winner, state.players, addLog]);
 
   if (state.winner) {
     return (
       <div className="min-h-screen bg-slate-900 flex items-center justify-center">
         <div className="text-center">
           <h1 className="text-4xl font-bold text-amber-400 mb-4">
-            {state.winner === "player1" ? "玩家 1" : "玩家 2"} 获胜！
+            {state.winner === "player1" ? (vsAI ? "你" : "玩家 1") : vsAI ? "AI" : "玩家 2"} 获胜！
           </h1>
-          <div className="flex gap-2 justify-center">
+          <div className="flex gap-2 justify-center flex-wrap">
             <button
               className="px-6 py-3 bg-amber-500 text-slate-900 font-bold rounded-lg hover:bg-amber-400"
               onClick={() => dispatch({ type: "RESET" })}
             >
               再玩一局
             </button>
+            {onBackToMenu && (
+              <button
+                className="px-6 py-3 bg-slate-600 text-white font-bold rounded-lg hover:bg-slate-500"
+                onClick={onBackToMenu}
+              >
+                返回主菜单
+              </button>
+            )}
           </div>
         </div>
       </div>
@@ -432,6 +534,14 @@ export default function GameBoard() {
     <div className={`h-screen bg-slate-900 p-1 flex flex-col relative overflow-hidden ${mobileLayout ? "game-mobile" : ""}`}>
       {state.lastDamage && state.lastDamageTarget && (
         <DamageDisplay amount={state.lastDamage} damageTargetPlayerId={state.lastDamageTarget} />
+      )}
+      {onBackToMenu && (
+        <button
+          className="absolute left-2 top-2 z-10 px-3 py-1.5 bg-slate-600 text-white rounded hover:bg-slate-500 text-sm"
+          onClick={onBackToMenu}
+        >
+          退出到主菜单
+        </button>
       )}
       <div className="absolute left-2 top-1/2 -translate-y-1/2 z-10 flex flex-col gap-2">
         <PhaseIndicator
@@ -511,6 +621,18 @@ function GameBoardInner({
   const [pendingSummon, setPendingSummon] = useState(null);
   const [tributeConfirmed, setTributeConfirmed] = useState(false);
   const [positionChangeZone, setPositionChangeZone] = useState(null);
+
+  // 攻击结算后（BATTLE 或 auto-allow/AI 流程）pendingAttack 从有值变为 null 时，清除攻击模式
+  const prevPendingAttackRef = useRef(state.pendingAttack);
+  useEffect(() => {
+    const hadPending = prevPendingAttackRef.current != null;
+    const nowNull = state.pendingAttack == null;
+    prevPendingAttackRef.current = state.pendingAttack;
+    if (hadPending && nowNull && (attackMode || attackingZone !== null)) {
+      setAttackMode(false);
+      setAttackingZone(null);
+    }
+  }, [state.pendingAttack, attackMode, attackingZone]);
 
   const currentPlayer = state.players[currentPlayerId];
   const opponent = state.players[opponentId];
@@ -764,7 +886,6 @@ function GameBoardInner({
     }
     if (pendingSummon?.position != null && summonTargetZones?.includes(index)) {
       playSummon();
-      addLog?.(pendingSummon.tributeIndices?.length ? `祭品召唤 ${pendingSummon.card.name}` : `召唤 ${pendingSummon.card.name}`, "player");
       dispatch({
         type: "SUMMON",
         playerId: currentPlayerId,
@@ -780,12 +901,15 @@ function GameBoardInner({
       setTributeConfirmed(false);
       return;
     }
+    const monster = currentPlayer.monsterZones[index];
+    const turnCount = state.turnCount ?? 1;
+    const faceDownSetThisTurn = monster?.faceDown && (monster?.setOnTurn ?? 0) >= turnCount;
     const canChangePosition =
       (state.currentPhase === "main1" || state.currentPhase === "main2") &&
       !selectedHandCard &&
       !pendingSummon &&
-      currentPlayer.monsterZones[index] &&
-      !currentPlayer.monsterZones[index].faceDown &&
+      monster &&
+      !faceDownSetThisTurn &&
       !(state.changedPositionThisTurn?.[currentPlayerId] ?? []).includes(index);
     if (canChangePosition) {
       setPositionChangeZone(index);
@@ -818,7 +942,6 @@ function GameBoardInner({
     if (!card) return;
     if (pendingSummon?.zoneIndex != null) {
       playSummon();
-      addLog?.(tributes?.length ? `祭品召唤 ${card.name}` : `召唤 ${card.name}`, "player");
       dispatch({
         type: "SUMMON",
         playerId: currentPlayerId,
@@ -904,7 +1027,6 @@ function GameBoardInner({
   const negateAttackWith010 = (handIndex) => {
     if (!state.pendingAttack) return;
     const defId = state.pendingAttack.defenderPlayerId;
-    addLog?.(`丢弃羽翼栗子球，攻击无效`, defId === currentPlayerId ? "player" : "opponent");
     dispatch({ type: "NEGATE_ATTACK", defenderPlayerId: defId, handIndex });
     setAttackMode(false);
     setAttackingZone(null);
@@ -912,6 +1034,20 @@ function GameBoardInner({
 
   const cancelPendingAttack = () => {
     dispatch({ type: "CLEAR_PENDING_ATTACK" });
+    setAttackMode(false);
+    setAttackingZone(null);
+  };
+
+  const activateTrapDuringAttack = (playerId, zoneIndex) => {
+    if (!state.pendingAttack) return;
+    playPhase();
+    addLog?.(`发动陷阱卡`, "player");
+    dispatch({
+      type: "ACTIVATE_SPELL_FROM_FIELD",
+      playerId,
+      zoneIndex,
+      logSource: playerId === "player1" ? "player" : "ai",
+    });
     setAttackMode(false);
     setAttackingZone(null);
   };
@@ -924,7 +1060,6 @@ function GameBoardInner({
       zoneIndex: positionChangeZone,
       newPosition,
     });
-    addLog?.(`怪兽改为${newPosition === "attack" ? "攻击" : "守备"}表示`, "player");
     setPositionChangeZone(null);
   };
 
@@ -932,7 +1067,7 @@ function GameBoardInner({
     <div className="flex-1 flex flex-col gap-1 min-h-0 overflow-hidden relative">
       {viewingCard && (
       <div
-        className="fixed right-4 top-1/2 -translate-y-1/2 z-30 h-[52vh] flex flex-col items-end pointer-events-auto"
+        className="fixed right-4 bottom-72 z-30 max-h-[45vh] flex flex-col items-end pointer-events-auto"
       >
         <CardDetailPanel
           card={viewingCard}
@@ -946,7 +1081,7 @@ function GameBoardInner({
             viewingCard &&
             viewingCard.zoneIndex !== undefined &&
             viewingCard.playerId === currentPlayerId &&
-            (viewingCard.card?.type === "spell" || viewingCard.card?.type === "trap") &&
+            viewingCard.card?.type === "trap" &&
             canActivateFromField(viewingCard.card) &&
             canActivateFromFieldInPhase(viewingCard.card, state.currentPhase)
           }
@@ -1158,12 +1293,14 @@ function GameBoardInner({
       </div>
 
       {isBottomActive && selectedHandCard?.type === "spell" && hasSpellEffect(selectedHandCard) && !pendingSpellTarget && !pendingLightSwordZone && !pendingDiscardSelect && (
-        <div className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 field-popup bg-slate-800 px-2.5 py-1.5 rounded flex items-center gap-1.5 z-30 shadow-lg">
-          <span className="text-amber-200 text-xs">发动魔法：</span>
-          <button className="px-2 py-0.5 bg-emerald-600 rounded hover:bg-emerald-500 text-white text-xs" onClick={handleActivateSpell}>
-            发动 {selectedHandCard?.name}
-          </button>
-          <button className="px-1.5 py-0.5 bg-slate-600 rounded hover:bg-slate-500 text-xs" onClick={() => setSelectedHandCard(null)}>取消</button>
+        <div className="fixed inset-0 z-30" onClick={() => setSelectedHandCard(null)}>
+          <div className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 field-popup bg-slate-800 px-2.5 py-1.5 rounded flex items-center gap-1.5 shadow-lg" onClick={(e) => e.stopPropagation()}>
+            <span className="text-amber-200 text-xs">发动魔法：</span>
+            <button className="px-2 py-0.5 bg-emerald-600 rounded hover:bg-emerald-500 text-white text-xs" onClick={handleActivateSpell}>
+              发动 {selectedHandCard?.name}
+            </button>
+            <button className="px-1.5 py-0.5 bg-slate-600 rounded hover:bg-slate-500 text-xs" onClick={() => setSelectedHandCard(null)}>取消</button>
+          </div>
         </div>
       )}
       {(canShowSummonForm || (pendingSummon && pendingSummon.position == null)) && (
@@ -1205,11 +1342,13 @@ function GameBoardInner({
         </div>
       )}
       {positionChangeZone !== null && (
-        <div className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 field-popup bg-slate-800 px-2.5 py-1.5 rounded flex items-center gap-1.5 z-30 shadow-lg">
-          <span className="text-amber-200 text-xs">改变表示形态：</span>
-          <button className="px-2 py-0.5 bg-blue-600 rounded hover:bg-blue-500 text-white text-xs" onClick={() => confirmPositionChange("attack")}>攻击</button>
-          <button className="px-2 py-0.5 bg-amber-600 rounded hover:bg-amber-500 text-white text-xs" onClick={() => confirmPositionChange("defense")}>守备</button>
-          <button className="px-1.5 py-0.5 bg-slate-600 rounded hover:bg-slate-500 text-xs" onClick={() => setPositionChangeZone(null)}>取消</button>
+        <div className="fixed inset-0 z-30" onClick={() => setPositionChangeZone(null)}>
+          <div className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 field-popup bg-slate-800 px-2.5 py-1.5 rounded flex items-center gap-1.5 shadow-lg" onClick={(e) => e.stopPropagation()}>
+            <span className="text-amber-200 text-xs">改变表示形态：</span>
+            <button className="px-2 py-0.5 bg-blue-600 rounded hover:bg-blue-500 text-white text-xs" onClick={() => confirmPositionChange("attack")}>攻击</button>
+            <button className="px-2 py-0.5 bg-amber-600 rounded hover:bg-amber-500 text-white text-xs" onClick={() => confirmPositionChange("defense")}>守备</button>
+            <button className="px-1.5 py-0.5 bg-slate-600 rounded hover:bg-slate-500 text-xs" onClick={() => setPositionChangeZone(null)}>取消</button>
+          </div>
         </div>
       )}
       {tributeCount > 0 && selectedHandCard?.type === "monster" && !pendingSummon && !tributeConfirmed && (
@@ -1230,9 +1369,14 @@ function GameBoardInner({
           </button>
         </div>
       )}
-      {state.pendingAttack && (
+      {state.pendingAttack && (!vsAI || state.pendingAttack.defenderPlayerId === "player1") && (() => {
+        const traps = getActivatableTrapsOnAttackDeclared(state);
+        const defHand = state.players[state.pendingAttack.defenderPlayerId]?.hand || [];
+        const has010 = defHand.some((c) => String(c?.id) === "010");
+        return traps.length > 0 || has010;
+      })() && (
         <div className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 field-popup bg-slate-800 px-2.5 py-1.5 rounded flex gap-1.5 items-center flex-wrap z-30 shadow-lg">
-          <span className="text-amber-400 text-xs">宣言攻击中 — 允许/无效/取消：</span>
+          <span className="text-amber-400 text-xs">宣言攻击中 — 允许/无效/陷阱/取消：</span>
           <button className="px-2 py-0.5 bg-green-600 rounded hover:bg-green-500 text-white text-xs" onClick={confirmAttack}>
             允许
           </button>
@@ -1248,6 +1392,15 @@ function GameBoardInner({
             }
             return null;
           })()}
+          {getActivatableTrapsOnAttackDeclared(state).map(({ playerId, zoneIndex, card }) => (
+            <button
+              key={`${playerId}-${zoneIndex}`}
+              className="px-2 py-0.5 bg-rose-600 rounded hover:bg-rose-500 text-white text-xs"
+              onClick={() => activateTrapDuringAttack(playerId, zoneIndex)}
+            >
+              发动 {card?.name}
+            </button>
+          ))}
           <button className="px-2 py-0.5 bg-red-600 rounded hover:bg-red-500 text-white text-xs" onClick={cancelPendingAttack}>
             取消
           </button>

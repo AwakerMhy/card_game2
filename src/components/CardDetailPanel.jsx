@@ -69,7 +69,7 @@ export default function CardDetailPanel({ card, onClear, onActivate, canActivate
             className="px-3 py-1.5 bg-slate-600 text-white rounded hover:bg-slate-500 text-sm"
             onClick={onClear}
           >
-            清除
+            关闭
           </button>
         )}
       </div>

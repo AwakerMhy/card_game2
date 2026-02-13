@@ -455,6 +455,38 @@ src/
 
 ---
 
+### 改动 17：v1.4.0 版本发布
+
+**日期**：2025-02-12
+
+**陷阱卡发动**
+- 盖放一回合的陷阱在满足条件时（如对方宣言攻击）弹窗选择发动，发动后送墓
+- 陷阱卡 turnCount 每回合递增，盖放后下一对方回合即可发动（不必等己方下回合）
+- 无可响应选项（无陷阱、无羽翼栗子球）时不弹窗，自动允许攻击
+- AI 攻击时先 PREPARE_ATTACK，人类防守方可见弹窗选择允许/无效/陷阱
+
+**卡牌与 UI**
+- 新增简约几何风格卡图（CardIllustration.jsx），每张卡正方形无文字插图
+- 卡组编辑页卡图由 sm 改为 md 尺寸
+- 改变表示形态弹窗点击外部关闭
+- 卡牌详情面板下边界上移、魔法卡不显示发动按钮、「清除」改为「关闭」
+- 左上角新增「退出到主菜单」按钮
+
+**规则与 Bug 修复**
+- 里侧守备召唤怪兽下一回合可翻开为攻击/守备表示（setOnTurn 限制当回合不可翻）
+- 过早的埋葬：装备怪兽离开场上时，该卡送入墓地（clearMonsterZone 时自动处理）
+- 攻击选择弹窗：仅在 pendingAttack 从有值变为 null 时清除攻击模式，避免弹窗瞬间消失
+
+**涉及文件**
+- `src/game-logic/gameState.js`（destroyEquipSpellsForMonsterZone、placeMonsterZone setOnTurn、clearMonsterZone）
+- `src/game-logic/spellEffects.js`（getActivatableTrapsOnAttackDeclared、turnCount 逻辑）
+- `src/components/GameBoard.jsx`（陷阱弹窗、AI PREPARE_ATTACK、攻击模式 useEffect、退出按钮、详情面板位置）
+- `src/components/Card.jsx`、`src/components/CardIllustration.jsx`（新增）
+- `src/components/CardDetailPanel.jsx`（清除→关闭）
+- `src/components/DeckEditor.jsx`（卡图尺寸）
+
+---
+
 ## 四、文件变更总览
 
 | 文件 | 说明 |
@@ -484,3 +516,4 @@ src/
 | 1.1.0 | 2025-02-12 | 召唤先选表示再选格子、里侧守备召唤可自由选格；心变还怪仅按 instanceId 归还；伤害数字显示在受伤玩家血条附近 |
 | 1.2.0 | 2025-02-12 | 新增「适配移动端」选项，紧凑布局与触摸优化，选项持久化 |
 | 1.3.0 | 2025-02-12 | 光之护封剑选择魔陷格、留场 3 回合、封锁直接攻击；闪电漩涡弹框选舍弃手牌；祭品召唤可选任意空格 |
+| 1.4.0 | 2025-02-12 | 陷阱发动弹窗、圣防护罩/攻击宣言流程、简约几何卡图、里侧怪兽翻面、过早的埋葬离场送墓、UI 优化 |

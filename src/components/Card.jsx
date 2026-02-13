@@ -1,4 +1,5 @@
 import { getAttributeDisplay, getRaceDisplay } from "../utils/cardDisplay.js";
+import CardIllustration from "./CardIllustration.jsx";
 
 export default function Card({
   card,
@@ -11,6 +12,7 @@ export default function Card({
   playable = false,
   draggable = false,
   onDragStart,
+  upright = false,
 }) {
   const sizeClasses = {
     sm: "w-[52px] h-[72px] text-[6px]",
@@ -24,7 +26,7 @@ export default function Card({
   };
 
   const position = card?.position || "attack";
-  const isDefense = position === "defense";
+  const isDefense = position === "defense" && !upright;
   const rotationClass = isDefense ? "rotate-90" : "";
 
   if (faceDown) {
@@ -56,6 +58,8 @@ export default function Card({
     ? "border-2 border-green-500 shadow-green-500/50"
     : "border-2 border-amber-800";
 
+  const imageSizeClass = size === "sm" ? "w-8 h-8" : size === "md" ? "w-10 h-10" : "w-12 h-12";
+
   return (
     <div
       className={`${sizeClasses[size]} ${rotationClass} ${bgColor} ${borderColor} rounded overflow-hidden cursor-pointer shadow-lg flex flex-col select-none transition-all touch-manipulation relative ${
@@ -65,24 +69,27 @@ export default function Card({
       draggable={draggable}
       onDragStart={onDragStart}
     >
-      <div className="font-bold truncate px-0.5 pt-0.5 border-b border-amber-200">
+      <div className="font-bold truncate px-0.5 pt-0.5 border-b border-amber-200 shrink-0">
         {card.name}
       </div>
+      <div className="flex-1 flex items-center justify-center p-0.5 min-h-0">
+        <CardIllustration cardId={card.id} className={`${imageSizeClass} flex-shrink-0`} />
+      </div>
       {isMonster && (
-        <div className="flex-1 p-0.5 space-y-0.5">
-          <div className="flex justify-between">
+        <div className="shrink-0 p-0.5 space-y-0.5 border-t border-amber-200">
+          <div className="flex justify-between text-[6px]">
             <span>{getAttributeDisplay(card.attribute)}</span>
             <span>Lv{card.level}</span>
           </div>
-          <div className="text-[6px] truncate">{getRaceDisplay(card.race)}</div>
-          <div className="flex justify-between font-bold">
+          <div className="text-[5px] truncate">{getRaceDisplay(card.race)}</div>
+          <div className="flex justify-between font-bold text-[6px]">
             <span>攻{card.atk}</span>
             <span>守{card.def}</span>
           </div>
         </div>
       )}
       {(isSpell || isTrap) && (
-        <div className="flex-1 p-0.5 flex items-center justify-center">
+        <div className="shrink-0 px-0.5 pb-0.5 text-center">
           <span className="text-[6px] text-slate-500">{card.type === "spell" ? "魔法" : "陷阱"}</span>
         </div>
       )}

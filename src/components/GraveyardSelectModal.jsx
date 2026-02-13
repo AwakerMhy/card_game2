@@ -34,7 +34,7 @@ export default function GraveyardSelectModal({ graves, title = "选择墓地中�
                       onClick={() => onSelect?.(card, playerId)}
                       className="cursor-pointer hover:ring-2 hover:ring-amber-500 rounded"
                     >
-                      <Card card={card} size="md" />
+                      <Card card={{ ...card, faceDown: false }} faceDown={false} upright size="md" />
                     </div>
                   ))}
                 </div>
