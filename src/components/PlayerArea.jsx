@@ -32,6 +32,7 @@ export function DeckGraveyardRow({ player, onGraveyardClick, compact = false }) 
 export default function PlayerArea({
   player,
   isOpponent,
+  mobileLayout = false,
   monsterZones,
   spellTrapZones,
   hand,
@@ -56,7 +57,7 @@ export default function PlayerArea({
     <div className="flex flex-col gap-0.5 flex-1 min-w-0">
       {canActivateSpell && onActivateSpell && (
         <button
-          className="px-2 py-1 bg-emerald-600 text-white rounded hover:bg-emerald-500 text-xs self-center shrink-0"
+          className="px-2 py-1 bg-emerald-600 text-white rounded hover:bg-emerald-500 text-xs self-center shrink-0 touch-manipulation"
           onClick={onActivateSpell}
         >
           发动魔法
@@ -69,12 +70,16 @@ export default function PlayerArea({
         playableCards={playableHandCards}
         selectedCard={selectedHandCard}
         onDragStart={onDragStart}
+        compact={mobileLayout}
       />
     </div>
   ) : (
-    <div className="flex gap-0.5 justify-center items-end flex-1 min-h-[108px]">
+    <div className={`flex gap-0.5 justify-center items-end flex-1 overflow-x-auto py-0.5 ${mobileLayout ? "min-h-[72px]" : "min-h-[108px]"}`}>
       {hand.map((_, i) => (
-        <div key={i} className="w-[68px] h-[108px] bg-amber-900 border border-amber-700 rounded shrink-0" />
+        <div
+          key={i}
+          className={mobileLayout ? "w-[52px] h-[72px] bg-amber-900 border border-amber-700 rounded shrink-0" : "w-[68px] h-[108px] bg-amber-900 border border-amber-700 rounded shrink-0"}
+        />
       ))}
     </div>
   );
@@ -94,12 +99,13 @@ export default function PlayerArea({
       onZoneDrop={onSpellTrapZoneDrop}
       onViewDetails={onViewDetails}
       selectedZone={selectedSpellTrapZone}
+      mobileLayout={mobileLayout}
     />
     </div>
   );
 
   const monster = (
-    <div className="h-[120px] shrink-0 flex items-center justify-center overflow-visible">
+    <div className={`shrink-0 flex items-center justify-center overflow-visible ${mobileLayout ? "h-[94px]" : "h-[120px]"}`}>
     <MonsterZone
       zones={monsterZones}
       onZoneClick={onMonsterZoneClick}
@@ -108,6 +114,7 @@ export default function PlayerArea({
       selectedZone={selectedMonsterZone}
       tributeSelection={tributeIndices}
       summonTargetZones={summonTargetZones}
+      mobileLayout={mobileLayout}
     />
     </div>
   );

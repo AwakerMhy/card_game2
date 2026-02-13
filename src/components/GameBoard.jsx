@@ -245,10 +245,26 @@ function gameReducer(state, action) {
   }
 }
 
+const MOBILE_LAYOUT_KEY = "cardGame_mobileLayout";
+
 export default function GameBoard() {
   const [state, dispatch] = useReducer(gameReducer, initialState);
   const [vsAI, setVsAI] = useState(false);
+  const [mobileLayout, setMobileLayout] = useState(() => {
+    try {
+      return JSON.parse(localStorage.getItem(MOBILE_LAYOUT_KEY) ?? "false");
+    } catch {
+      return false;
+    }
+  });
   const [actionLog, setActionLog] = useState([]);
+
+  const setMobileLayoutPersist = useCallback((value) => {
+    setMobileLayout(value);
+    try {
+      localStorage.setItem(MOBILE_LAYOUT_KEY, JSON.stringify(value));
+    } catch (_) {}
+  }, []);
 
   const addLog = useCallback((text, source = "player") => {
     setActionLog((prev) => [...prev, { text, source }]);
@@ -397,7 +413,7 @@ export default function GameBoard() {
   }
 
   return (
-    <div className="h-screen bg-slate-900 p-1 flex flex-col relative overflow-hidden">
+    <div className={`h-screen bg-slate-900 p-1 flex flex-col relative overflow-hidden ${mobileLayout ? "game-mobile" : ""}`}>
       {state.lastDamage && state.lastDamageTarget && (
         <DamageDisplay amount={state.lastDamage} damageTargetPlayerId={state.lastDamageTarget} />
       )}
@@ -429,6 +445,15 @@ export default function GameBoard() {
           />
           <span>对战 AI</span>
         </label>
+        <label className="flex items-center gap-2 text-slate-400 cursor-pointer text-sm">
+          <input
+            type="checkbox"
+            checked={mobileLayout}
+            onChange={(e) => setMobileLayoutPersist(e.target.checked)}
+            className="rounded"
+          />
+          <span>适配移动端</span>
+        </label>
       </div>
 
       <ActionLog entries={actionLog} />
@@ -438,6 +463,7 @@ export default function GameBoard() {
         currentPlayerId={currentPlayerId}
         opponentId={opponentId}
         vsAI={vsAI}
+        mobileLayout={mobileLayout}
         addLog={addLog}
       />
     </div>
@@ -450,6 +476,7 @@ function GameBoardInner({
   currentPlayerId,
   opponentId,
   vsAI,
+  mobileLayout = false,
   addLog,
 }) {
   const [selectedHandCard, setSelectedHandCard] = useState(null);
@@ -900,6 +927,7 @@ function GameBoardInner({
         <PlayerArea
           player={topPlayer}
           isOpponent={true}
+          mobileLayout={mobileLayout}
           monsterZones={topPlayer.monsterZones}
           spellTrapZones={topPlayer.spellTrapZones}
           hand={topPlayer.hand}
@@ -926,6 +954,7 @@ function GameBoardInner({
         <PlayerArea
         player={bottomPlayer}
         isOpponent={false}
+        mobileLayout={mobileLayout}
         monsterZones={bottomPlayer.monsterZones}
         spellTrapZones={bottomPlayer.spellTrapZones}
         hand={bottomPlayer.hand}

@@ -66,3 +66,18 @@ body {
 .animate-damage-flash {
   animation: damageFlash 0.8s ease-out forwards;
 }
+
+/* 适配移动端布局：固定弹窗略上移、增大可点区域 */
+.game-mobile .fixed.bottom-20 {
+  bottom: 5rem;
+  left: 50%;
+  transform: translateX(-50%);
+  max-width: calc(100vw - 1rem);
+}
+.game-mobile button {
+  touch-action: manipulation;
+  min-height: 2.25rem;
+}
+.game-mobile label {
+  touch-action: manipulation;
+}
