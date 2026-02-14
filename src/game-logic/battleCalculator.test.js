@@ -24,7 +24,7 @@ describe("battleCalculator", () => {
     expect(result.defenderDamage).toBe(0);
   });
 
-  it("ATK vs DEF: no damage when DEF higher", () => {
+  it("ATK vs DEF: attacker takes (DEF-ATK) damage when DEF higher", () => {
     const attacker = { atk: 2000, position: "attack" };
     const defender = { atk: 1000, def: 2500, position: "defense" };
     const result = calculateBattle(attacker, defender, false);
@@ -32,6 +32,7 @@ describe("battleCalculator", () => {
     expect(result.attackerDestroys).toBe(false);
     expect(result.defenderDestroys).toBe(false);
     expect(result.defenderDamage).toBe(0);
+    expect(result.attackerDamage).toBe(500);
   });
 
   it("ATK vs DEF: destroys when ATK higher", () => {
@@ -41,6 +42,16 @@ describe("battleCalculator", () => {
 
     expect(result.attackerDestroys).toBe(true);
     expect(result.defenderDamage).toBe(0);
+  });
+
+  it("ATK vs face-down DEF: treated as defense, attacker takes (DEF-ATK) when DEF higher", () => {
+    const attacker = { atk: 2000, position: "attack" };
+    const defender = { atk: 1000, def: 2500, position: "defense", faceDown: true };
+    const result = calculateBattle(attacker, defender, false);
+
+    expect(result.attackerDestroys).toBe(false);
+    expect(result.defenderDestroys).toBe(false);
+    expect(result.attackerDamage).toBe(500);
   });
 
   it("direct attack deals full ATK as damage", () => {

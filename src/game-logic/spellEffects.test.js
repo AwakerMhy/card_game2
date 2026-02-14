@@ -21,7 +21,8 @@ describe("spellEffects", () => {
     const handLen = state.players.player1.hand.length;
     const card = { id: "101", type: "spell", instanceId: "x" };
 
-    const newState = resolveSpellEffect(state, "player1", card);
+    const result = resolveSpellEffect(state, "player1", card);
+    const newState = result.state;
 
     expect(newState.players.player1.hand).toHaveLength(handLen + 2);
     expect(newState.players.player1.deck).toHaveLength(deckLen - 2);
@@ -43,7 +44,8 @@ describe("spellEffects", () => {
     };
     const card = { id: "102", type: "spell", instanceId: "x" };
 
-    const newState = resolveSpellEffect(stateWithGrave, "player1", card);
+    const result = resolveSpellEffect(stateWithGrave, "player1", card);
+    const newState = result.state;
 
     expect(newState.players.player1.graveyard).toHaveLength(0);
     expect(newState.players.player1.monsterZones[0]).toBeDefined();

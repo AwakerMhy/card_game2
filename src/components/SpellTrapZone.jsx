@@ -3,7 +3,7 @@ import Card from "./Card.jsx";
 const ZONE_SIZE = {
   default: "w-[72px] h-[120px] min-h-[120px]",
   mobile: "w-[50px] h-[84px] min-h-[84px]",
-  mobileLarge: "w-[60px] h-[96px] min-h-[96px]",
+  mobileLarge: "w-[68px] h-[108px] min-h-[108px]",
 };
 
 export default function SpellTrapZone({ zones, onZoneClick, onZoneDrop, onViewDetails, selectedZone, highlightEmptyIndices, mobileLayout = false, mobileLarge = false }) {
@@ -33,7 +33,7 @@ export default function SpellTrapZone({ zones, onZoneClick, onZoneDrop, onViewDe
               <Card
                 card={zone}
                 faceDown={zone.faceDown}
-                size={mobileLayout ? (mobileLarge ? "sm" : "xs") : "md"}
+                size={mobileLayout ? (mobileLarge ? "smL" : "xs") : "md"}
                 selected={selectedZone === index}
                 onClick={() => onZoneClick && onZoneClick(index)}
                 onViewDetails={zone.faceDown ? undefined : onViewDetails}

@@ -17,6 +17,7 @@ export default function Card({
   const sizeClasses = {
     xs: "w-[44px] h-[64px] text-[5px]",
     sm: "w-[52px] h-[72px] text-[6px]",
+    smL: "w-[60px] h-[84px] text-[7px]",
     md: "w-[68px] h-[108px] text-[8px]",
     lg: "w-24 h-[132px] text-xs",
   };
@@ -59,7 +60,7 @@ export default function Card({
     ? "border-2 border-green-500 shadow-green-500/50"
     : "border-2 border-amber-800";
 
-  const imageSizeClass = size === "xs" ? "w-6 h-6" : size === "sm" ? "w-8 h-8" : size === "md" ? "w-10 h-10" : "w-12 h-12";
+  const imageSizeClass = size === "xs" ? "w-6 h-6" : size === "sm" ? "w-8 h-8" : size === "smL" ? "w-9 h-9" : size === "md" ? "w-10 h-10" : "w-12 h-12";
 
   return (
     <div

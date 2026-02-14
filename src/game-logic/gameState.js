@@ -88,6 +88,69 @@ export function createInitialState(options = {}) {
     changedPositionThisTurn: { player1: [], player2: [] },
     pendingLogs: [],
     deckConfig: options.player1DeckIds != null ? { player1DeckIds: options.player1DeckIds, player2DeckIds: options.player2DeckIds } : null,
+    pendingDeckSearch: null,
+    pendingEffectConfirm: null,
+    pendingEffectQueue: [],
+    pendingKuribohChoice: null,
+  };
+}
+
+/** Add effect to queue and set pendingEffectConfirm from first */
+export function pushEffectQueue(state, trigger) {
+  if (!trigger) return state;
+  const queue = [...(state.pendingEffectQueue || []), trigger];
+  return {
+    ...state,
+    pendingEffectQueue: queue,
+    pendingEffectConfirm: queue.length === 1 ? queue[0] : state.pendingEffectConfirm,
+  };
+}
+
+/** Pop first from queue, set pendingEffectConfirm from next */
+export function popEffectQueue(state) {
+  const queue = [...(state.pendingEffectQueue || [])];
+  queue.shift();
+  return {
+    ...state,
+    pendingEffectQueue: queue,
+    pendingEffectConfirm: queue.length > 0 ? queue[0] : null,
+  };
+}
+
+/** Get qualifying cards in deck for deck search effects (002, 011, 012) */
+export function getDeckSearchQualifyingCards(state, playerId, filterType) {
+  const player = state.players[playerId];
+  if (!player?.deck?.length) return [];
+  const pred =
+    filterType === "002"
+      ? (c) => c.type === "spell" || c.type === "trap"
+      : filterType === "011"
+        ? (c) => c.type === "monster" && (c.atk ?? 0) <= 1500
+        : filterType === "012"
+          ? (c) => c.type === "monster" && (c.def ?? 0) <= 1500
+          : () => false;
+  return player.deck.filter(pred);
+}
+
+/** Remove selected card from deck, add to hand, shuffle deck */
+export function executeDeckSearchSelect(state, playerId, instanceId) {
+  const player = state.players[playerId];
+  const idx = player.deck.findIndex((c) => c.instanceId === instanceId);
+  if (idx < 0) return { ...state, pendingDeckSearch: null };
+  const [found] = player.deck.filter((c) => c.instanceId === instanceId);
+  const newDeck = player.deck.filter((c) => c.instanceId !== instanceId);
+  const shuffledDeck = shuffle(newDeck);
+  return {
+    ...state,
+    players: {
+      ...state.players,
+      [playerId]: {
+        ...player,
+        deck: shuffledDeck,
+        hand: [...player.hand, { ...found, instanceId: found.instanceId || crypto.randomUUID() }],
+      },
+    },
+    pendingDeckSearch: null,
   };
 }
 
@@ -318,5 +381,7 @@ export function getEmptyMonsterZoneIndex(player) {
 }
 
 export function getEmptySpellTrapZoneIndex(player) {
-  return player.spellTrapZones.findIndex((z) => z === null);
+  const zones = player?.spellTrapZones;
+  if (!Array.isArray(zones)) return -1;
+  return zones.findIndex((z) => z === null);
 }
