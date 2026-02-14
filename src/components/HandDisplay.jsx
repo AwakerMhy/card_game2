@@ -8,14 +8,17 @@ export default function HandDisplay({
   selectedCard,
   onDragStart,
   compact = false,
+  mobileLarge = false,
 }) {
+  const handMinH = compact ? (mobileLarge ? "min-h-[72px]" : "min-h-[64px]") : "min-h-[108px]";
+  const cardSize = compact ? (mobileLarge ? "sm" : "xs") : "md";
   return (
-    <div className={`flex gap-0.5 justify-center items-end py-0.5 overflow-x-auto ${compact ? "min-h-[64px]" : "min-h-[108px]"}`}>
+    <div className={`flex gap-0.5 justify-center items-end py-0.5 overflow-x-auto ${handMinH}`}>
       {cards.map((card) => (
         <Card
           key={card.instanceId}
           card={card}
-          size={compact ? "xs" : "md"}
+          size={cardSize}
           onClick={() => onCardClick && onCardClick(card)}
           onViewDetails={onViewDetails}
           selected={selectedCard?.instanceId === card.instanceId}

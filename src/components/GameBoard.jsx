@@ -291,8 +291,9 @@ function gameReducer(state, action) {
 }
 
 const MOBILE_LAYOUT_KEY = "cardGame_mobileLayout";
+const MOBILE_LARGE_KEY = "cardGame_mobileLarge";
 
-export default function GameBoard({ initialVsAI = false, initialMobileLayout, initialDeckConfig, onBackToMenu }) {
+export default function GameBoard({ initialVsAI = false, initialMobileLayout, initialMobileLarge, initialDeckConfig, onBackToMenu }) {
   const [state, dispatch] = useReducer(
     gameReducer,
     initialDeckConfig,
@@ -307,12 +308,27 @@ export default function GameBoard({ initialVsAI = false, initialMobileLayout, in
       return false;
     }
   });
+  const [mobileLarge, setMobileLarge] = useState(() => {
+    if (initialMobileLarge !== undefined) return initialMobileLarge;
+    try {
+      return JSON.parse(localStorage.getItem(MOBILE_LARGE_KEY) ?? "false");
+    } catch {
+      return false;
+    }
+  });
   const [actionLog, setActionLog] = useState([]);
 
   const setMobileLayoutPersist = useCallback((value) => {
     setMobileLayout(value);
     try {
       localStorage.setItem(MOBILE_LAYOUT_KEY, JSON.stringify(value));
+    } catch (_) {}
+  }, []);
+
+  const setMobileLargePersist = useCallback((value) => {
+    setMobileLarge(value);
+    try {
+      localStorage.setItem(MOBILE_LARGE_KEY, JSON.stringify(value));
     } catch (_) {}
   }, []);
 
@@ -570,6 +586,12 @@ export default function GameBoard({ initialVsAI = false, initialMobileLayout, in
             <input type="checkbox" checked={mobileLayout} onChange={(e) => setMobileLayoutPersist(e.target.checked)} className="rounded" />
             <span>竖屏</span>
           </label>
+          {mobileLayout && (
+            <label className="flex items-center gap-1 text-slate-400 cursor-pointer text-xs">
+              <input type="checkbox" checked={mobileLarge} onChange={(e) => setMobileLargePersist(e.target.checked)} className="rounded" />
+              <span>大号</span>
+            </label>
+          )}
         </div>
       ) : (
         <>
@@ -612,7 +634,7 @@ export default function GameBoard({ initialVsAI = false, initialMobileLayout, in
         </>
       )}
 
-      <ActionLog entries={actionLog} mobileLayout={mobileLayout} />
+      <ActionLog entries={actionLog} mobileLayout={mobileLayout} mobileLarge={mobileLarge} />
       <div className={`flex-1 flex flex-col min-h-0 overflow-hidden ${!mobileLayout ? "ml-36" : ""}`}>
         <GameBoardInner
           state={state}
@@ -621,6 +643,7 @@ export default function GameBoard({ initialVsAI = false, initialMobileLayout, in
           opponentId={opponentId}
           vsAI={vsAI}
           mobileLayout={mobileLayout}
+          mobileLarge={mobileLarge}
           addLog={addLog}
         />
       </div>
@@ -635,6 +658,7 @@ function GameBoardInner({
   opponentId,
   vsAI,
   mobileLayout = false,
+  mobileLarge = false,
   addLog,
 }) {
   const [selectedHandCard, setSelectedHandCard] = useState(null);
@@ -1247,16 +1271,17 @@ function GameBoardInner({
                 : undefined
             }
           >
-            <span className={`font-bold text-amber-400 ${mobileLayout ? "text-xs" : ""}`}>{topPlayerId === "player2" && vsAI ? "AI" : topPlayerId === "player1" ? "玩家 1" : "玩家 2"}</span>
-            <span className={`ml-1 font-bold text-red-500 ${mobileLayout ? "text-base" : "ml-2 text-xl"}`}>{topPlayer.lp}</span>
+            <span className={`font-bold text-amber-400 ${mobileLayout ? (mobileLarge ? "text-sm" : "text-xs") : ""}`}>{topPlayerId === "player2" && vsAI ? "AI" : topPlayerId === "player1" ? "玩家 1" : "玩家 2"}</span>
+            <span className={`ml-1 font-bold text-red-500 ${mobileLayout ? (mobileLarge ? "text-lg" : "text-base") : "ml-2 text-xl"}`}>{topPlayer.lp}</span>
           </div>
-          <DeckGraveyardRow player={topPlayer} onGraveyardClick={() => handleGraveyardClick(topPlayerId)} compact={mobileLayout} />
+          <DeckGraveyardRow player={topPlayer} onGraveyardClick={() => handleGraveyardClick(topPlayerId)} compact={mobileLayout} mobileLarge={mobileLarge} />
         </div>
 
         <PlayerArea
           player={topPlayer}
           isOpponent={true}
           mobileLayout={mobileLayout}
+          mobileLarge={mobileLarge}
           monsterZones={topPlayer.monsterZones}
           spellTrapZones={topPlayer.spellTrapZones}
           hand={topPlayer.hand}
@@ -1284,6 +1309,7 @@ function GameBoardInner({
         player={bottomPlayer}
         isOpponent={false}
         mobileLayout={mobileLayout}
+        mobileLarge={mobileLarge}
         monsterZones={bottomPlayer.monsterZones}
         spellTrapZones={bottomPlayer.spellTrapZones}
         hand={bottomPlayer.hand}
@@ -1315,11 +1341,11 @@ function GameBoardInner({
         onSpellTrapZoneDrop={isBottomActive ? handleSpellTrapZoneDrop : undefined}
       />
 
-        <div className={`absolute z-10 flex flex-col items-start ${mobileLayout ? "bottom-24 left-0 px-1 gap-0.5" : "bottom-0 left-4 gap-1"}`}>
-          <DeckGraveyardRow player={bottomPlayer} onGraveyardClick={() => handleGraveyardClick(bottomPlayerId)} compact={mobileLayout} />
+        <div className={`absolute z-10 flex flex-col items-start ${mobileLayout ? (mobileLarge ? "bottom-32 left-0 px-1 gap-0.5" : "bottom-24 left-0 px-1 gap-0.5") : "bottom-0 left-4 gap-1"}`}>
+          <DeckGraveyardRow player={bottomPlayer} onGraveyardClick={() => handleGraveyardClick(bottomPlayerId)} compact={mobileLayout} mobileLarge={mobileLarge} />
           <div className={`bg-slate-800 rounded-lg ${mobileLayout ? "px-2 py-1" : "px-4 py-2"}`}>
-            <span className={`font-bold text-amber-400 ${mobileLayout ? "text-xs" : ""}`}>{(vsAI && bottomPlayerId === "player1") || (!vsAI && currentPlayerId === bottomPlayerId) ? "你" : bottomPlayerId === "player1" ? "玩家 1" : "玩家 2"}</span>
-            <span className={`font-bold text-red-500 ${mobileLayout ? "ml-1 text-base" : "ml-2 text-xl"}`}>{bottomPlayer.lp}</span>
+            <span className={`font-bold text-amber-400 ${mobileLayout ? (mobileLarge ? "text-sm" : "text-xs") : ""}`}>{(vsAI && bottomPlayerId === "player1") || (!vsAI && currentPlayerId === bottomPlayerId) ? "你" : bottomPlayerId === "player1" ? "玩家 1" : "玩家 2"}</span>
+            <span className={`font-bold text-red-500 ${mobileLayout ? (mobileLarge ? "ml-1 text-lg" : "ml-1 text-base") : "ml-2 text-xl"}`}>{bottomPlayer.lp}</span>
           </div>
         </div>
       </div>

@@ -4,25 +4,29 @@ import HandDisplay from "./HandDisplay.jsx";
 
 // 对称布局：对手从上到下=手卡→魔陷→怪兽，己方从上到下=怪兽→魔陷→手卡
 // 卡组和墓地显示组件（可导出供 GameBoard 在血条旁使用）
-export function DeckGraveyardRow({ player, onGraveyardClick, compact = false }) {
+export function DeckGraveyardRow({ player, onGraveyardClick, compact = false, mobileLarge = false }) {
   const boxClass = compact
-    ? "w-7 h-9 border border-amber-700 rounded flex items-center justify-center"
+    ? mobileLarge
+      ? "w-8 h-10 border border-amber-700 rounded flex items-center justify-center"
+      : "w-7 h-9 border border-amber-700 rounded flex items-center justify-center"
     : "w-9 h-12 border-2 border-amber-700 rounded flex items-center justify-center";
+  const labelClass = compact ? (mobileLarge ? "text-[9px]" : "text-[8px]") : "text-[9px]";
+  const numClass = compact ? (mobileLarge ? "text-xs" : "text-[10px]") : "text-xs";
   return (
     <div className={`flex gap-0.5 items-end shrink-0 ${compact ? "flex-row" : ""}`}>
       <div className="text-center">
-        <div className={`text-slate-400 ${compact ? "text-[8px]" : "text-[9px]"}`}>卡组</div>
+        <div className={`text-slate-400 ${labelClass}`}>卡组</div>
         <div className={`${boxClass} bg-amber-900`}>
-          <span className={`text-amber-200 font-bold ${compact ? "text-[10px]" : "text-xs"}`}>{player.deck.length}</span>
+          <span className={`text-amber-200 font-bold ${numClass}`}>{player.deck.length}</span>
         </div>
       </div>
       <div className="text-center">
-        <div className={`text-slate-400 ${compact ? "text-[8px]" : "text-[9px]"}`}>墓地</div>
+        <div className={`text-slate-400 ${labelClass}`}>墓地</div>
         <div
           className={`${boxClass} bg-slate-700 border-slate-500 cursor-pointer hover:bg-slate-600 ${onGraveyardClick ? "" : ""}`}
           onClick={onGraveyardClick}
         >
-          <span className={`text-slate-300 font-bold ${compact ? "text-[10px]" : "text-xs"}`}>{player.graveyard.length}</span>
+          <span className={`text-slate-300 font-bold ${numClass}`}>{player.graveyard.length}</span>
         </div>
       </div>
     </div>
@@ -33,6 +37,7 @@ export default function PlayerArea({
   player,
   isOpponent,
   mobileLayout = false,
+  mobileLarge = false,
   monsterZones,
   spellTrapZones,
   hand,
@@ -63,14 +68,15 @@ export default function PlayerArea({
         selectedCard={selectedHandCard}
         onDragStart={onDragStart}
         compact={mobileLayout}
+        mobileLarge={mobileLarge}
       />
     </div>
   ) : (
-    <div className={`flex gap-0.5 justify-center items-end flex-1 overflow-x-auto py-0.5 ${mobileLayout ? "min-h-[64px]" : "min-h-[108px]"}`}>
+    <div className={`flex gap-0.5 justify-center items-end flex-1 overflow-x-auto py-0.5 ${mobileLayout ? (mobileLarge ? "min-h-[72px]" : "min-h-[64px]") : "min-h-[108px]"}`}>
       {hand.map((_, i) => (
         <div
           key={i}
-          className={mobileLayout ? "w-[44px] h-[64px] bg-amber-900 border border-amber-700 rounded shrink-0" : "w-[68px] h-[108px] bg-amber-900 border border-amber-700 rounded shrink-0"}
+          className={mobileLayout ? (mobileLarge ? "w-[52px] h-[72px] bg-amber-900 border border-amber-700 rounded shrink-0" : "w-[44px] h-[64px] bg-amber-900 border border-amber-700 rounded shrink-0") : "w-[68px] h-[108px] bg-amber-900 border border-amber-700 rounded shrink-0"}
         />
       ))}
     </div>
@@ -93,12 +99,13 @@ export default function PlayerArea({
       selectedZone={selectedSpellTrapZone}
       highlightEmptyIndices={spellTrapHighlightIndices}
       mobileLayout={mobileLayout}
+      mobileLarge={mobileLarge}
     />
     </div>
   );
 
   const monster = (
-    <div className={`shrink-0 flex items-center justify-center overflow-visible ${mobileLayout ? "h-[84px]" : "h-[120px]"}`}>
+    <div className={`shrink-0 flex items-center justify-center overflow-visible ${mobileLayout ? (mobileLarge ? "h-[96px]" : "h-[84px]") : "h-[120px]"}`}>
     <MonsterZone
       zones={monsterZones}
       onZoneClick={onMonsterZoneClick}
@@ -109,6 +116,7 @@ export default function PlayerArea({
       summonTargetZones={summonTargetZones}
       equipHighlightZoneIndex={equipHighlightZoneIndex}
       mobileLayout={mobileLayout}
+      mobileLarge={mobileLarge}
     />
     </div>
   );
