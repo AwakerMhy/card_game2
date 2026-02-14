@@ -7,19 +7,21 @@ export const PHASES = [
   { id: "end", label: "结束", short: "EP" },
 ];
 
-export default function PhaseIndicator({ currentPhase, onNextPhase, isMyTurn = true }) {
+export default function PhaseIndicator({ currentPhase, onNextPhase, isMyTurn = true, compact = false }) {
   const currentIndex = PHASES.findIndex((p) => p.id === currentPhase);
   const canAdvance = currentIndex >= 0 && currentIndex < PHASES.length - 1;
   const isAutoPhase = currentPhase === "draw" || currentPhase === "standby";
   const currentPhaseHighlight = isMyTurn ? "bg-blue-500 text-white" : "bg-red-500 text-white";
 
   return (
-    <div className="flex gap-1 items-center px-2 py-1 bg-slate-800 rounded-lg">
-      <div className="flex gap-0.5">
+    <div className={`flex gap-1 items-center rounded-lg bg-slate-800 ${compact ? "px-1.5 py-0.5 gap-0.5" : "px-2 py-1"}`}>
+      <div className={`flex ${compact ? "gap-0.5" : "gap-0.5"}`}>
         {PHASES.map((phase) => (
           <div
             key={phase.id}
-            className={`px-2 py-0.5 rounded text-xs font-medium cursor-default ${
+            className={`rounded font-medium cursor-default ${
+              compact ? "px-1 py-0.5 text-[10px]" : "px-2 py-0.5 text-xs"
+            } ${
               currentPhase === phase.id ? currentPhaseHighlight : "bg-slate-700 text-slate-400"
             }`}
             title={phase.label}
@@ -30,10 +32,10 @@ export default function PhaseIndicator({ currentPhase, onNextPhase, isMyTurn = t
       </div>
       {canAdvance && !isAutoPhase && onNextPhase && (
         <button
-          className="px-2 py-0.5 bg-slate-600 text-white rounded hover:bg-slate-500 text-xs"
+          className={`bg-slate-600 text-white rounded hover:bg-slate-500 ${compact ? "px-1 py-0.5 text-[10px]" : "px-2 py-0.5 text-xs"}`}
           onClick={onNextPhase}
         >
-          下一阶段
+          {compact ? "下一" : "下一阶段"}
         </button>
       )}
     </div>

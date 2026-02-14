@@ -531,67 +531,99 @@ export default function GameBoard({ initialVsAI = false, initialMobileLayout, in
   }
 
   return (
-    <div className={`h-screen bg-slate-900 p-1 flex flex-col relative overflow-hidden ${mobileLayout ? "game-mobile" : ""}`}>
+    <div className={`h-screen bg-slate-900 flex flex-col relative overflow-hidden ${mobileLayout ? "game-mobile" : "p-1"}`}>
       {state.lastDamage && state.lastDamageTarget && (
         <DamageDisplay amount={state.lastDamage} damageTargetPlayerId={state.lastDamageTarget} />
       )}
-      {onBackToMenu && (
-        <button
-          className="absolute left-2 top-2 z-10 px-3 py-1.5 bg-slate-600 text-white rounded hover:bg-slate-500 text-sm"
-          onClick={onBackToMenu}
-        >
-          退出到主菜单
-        </button>
-      )}
-      <div className="absolute left-2 top-1/2 -translate-y-1/2 z-10 flex flex-col gap-2">
-        <PhaseIndicator
-          currentPhase={state.currentPhase}
-          onNextPhase={vsAI && state.currentTurn === 2 ? undefined : handleNextPhase}
-          isMyTurn={state.currentTurn === 1}
-        />
-        <div className="flex items-center gap-1.5">
-          <span className="text-slate-400 text-sm">
-            回合 {state.turnCount} - {state.currentTurn === 1 ? "玩家 1" : vsAI ? "AI" : "玩家 2"} 的回合
+      {mobileLayout ? (
+        <div className="shrink-0 flex flex-wrap items-center gap-1.5 px-2 py-1.5 bg-slate-800/95 border-b border-slate-700 z-10">
+          {onBackToMenu && (
+            <button
+              className="px-2 py-1 bg-slate-600 text-white rounded hover:bg-slate-500 text-xs"
+              onClick={onBackToMenu}
+            >
+              退出
+            </button>
+          )}
+          <PhaseIndicator
+            currentPhase={state.currentPhase}
+            onNextPhase={vsAI && state.currentTurn === 2 ? undefined : handleNextPhase}
+            isMyTurn={state.currentTurn === 1}
+            compact={true}
+          />
+          <span className="text-slate-400 text-xs shrink-0">
+            {state.turnCount}回 · {state.currentTurn === 1 ? "你" : vsAI ? "AI" : "P2"}
           </span>
           {(!vsAI || state.currentTurn === 1) && (
             <button
-              className="px-2 py-1 bg-slate-600 text-white rounded hover:bg-slate-500 text-sm shrink-0"
+              className="px-2 py-1 bg-slate-600 text-white rounded hover:bg-slate-500 text-xs shrink-0"
               onClick={handleEndTurn}
             >
-              结束回合
+              结束
             </button>
           )}
+          <label className="flex items-center gap-1 text-slate-400 cursor-pointer text-xs ml-auto">
+            <input type="checkbox" checked={vsAI} onChange={(e) => setVsAI(e.target.checked)} className="rounded" />
+            <span>AI</span>
+          </label>
+          <label className="flex items-center gap-1 text-slate-400 cursor-pointer text-xs">
+            <input type="checkbox" checked={mobileLayout} onChange={(e) => setMobileLayoutPersist(e.target.checked)} className="rounded" />
+            <span>竖屏</span>
+          </label>
         </div>
-        <label className="flex items-center gap-2 text-slate-400 cursor-pointer text-sm">
-          <input
-            type="checkbox"
-            checked={vsAI}
-            onChange={(e) => setVsAI(e.target.checked)}
-            className="rounded"
-          />
-          <span>对战 AI</span>
-        </label>
-        <label className="flex items-center gap-2 text-slate-400 cursor-pointer text-sm">
-          <input
-            type="checkbox"
-            checked={mobileLayout}
-            onChange={(e) => setMobileLayoutPersist(e.target.checked)}
-            className="rounded"
-          />
-          <span>适配移动端</span>
-        </label>
-      </div>
+      ) : (
+        <>
+          {onBackToMenu && (
+            <button
+              className="absolute left-2 top-2 z-10 px-3 py-1.5 bg-slate-600 text-white rounded hover:bg-slate-500 text-sm"
+              onClick={onBackToMenu}
+            >
+              退出到主菜单
+            </button>
+          )}
+          <div className="absolute left-2 top-1/2 -translate-y-1/2 z-10 flex flex-col gap-2">
+            <PhaseIndicator
+              currentPhase={state.currentPhase}
+              onNextPhase={vsAI && state.currentTurn === 2 ? undefined : handleNextPhase}
+              isMyTurn={state.currentTurn === 1}
+            />
+            <div className="flex items-center gap-1.5">
+              <span className="text-slate-400 text-sm">
+                回合 {state.turnCount} - {state.currentTurn === 1 ? "玩家 1" : vsAI ? "AI" : "玩家 2"} 的回合
+              </span>
+              {(!vsAI || state.currentTurn === 1) && (
+                <button
+                  className="px-2 py-1 bg-slate-600 text-white rounded hover:bg-slate-500 text-sm shrink-0"
+                  onClick={handleEndTurn}
+                >
+                  结束回合
+                </button>
+              )}
+            </div>
+            <label className="flex items-center gap-2 text-slate-400 cursor-pointer text-sm">
+              <input type="checkbox" checked={vsAI} onChange={(e) => setVsAI(e.target.checked)} className="rounded" />
+              <span>对战 AI</span>
+            </label>
+            <label className="flex items-center gap-2 text-slate-400 cursor-pointer text-sm">
+              <input type="checkbox" checked={mobileLayout} onChange={(e) => setMobileLayoutPersist(e.target.checked)} className="rounded" />
+              <span>适配移动端</span>
+            </label>
+          </div>
+        </>
+      )}
 
-      <ActionLog entries={actionLog} />
-      <GameBoardInner
-        state={state}
-        dispatch={dispatch}
-        currentPlayerId={currentPlayerId}
-        opponentId={opponentId}
-        vsAI={vsAI}
-        mobileLayout={mobileLayout}
-        addLog={addLog}
-      />
+      <ActionLog entries={actionLog} mobileLayout={mobileLayout} />
+      <div className={`flex-1 flex flex-col min-h-0 overflow-hidden ${!mobileLayout ? "ml-36" : ""}`}>
+        <GameBoardInner
+          state={state}
+          dispatch={dispatch}
+          currentPlayerId={currentPlayerId}
+          opponentId={opponentId}
+          vsAI={vsAI}
+          mobileLayout={mobileLayout}
+          addLog={addLog}
+        />
+      </div>
     </div>
   );
 }
@@ -1201,10 +1233,10 @@ function GameBoardInner({
           }}
         />
       )}
-      <div className="relative flex-1 flex flex-col gap-1 min-h-0 overflow-hidden">
-        <div className="absolute top-0 right-4 z-10 flex flex-col gap-1 items-end">
+      <div className="relative flex-1 flex flex-col gap-0.5 min-h-0 overflow-hidden">
+        <div className={`absolute top-0 right-0 z-10 flex flex-col gap-0.5 items-end ${mobileLayout ? "px-1" : "right-4 gap-1"}`}>
           <div
-            className={`px-4 py-2 bg-slate-800 rounded-lg ${
+            className={`bg-slate-800 rounded-lg ${mobileLayout ? "px-2 py-1" : "px-4 py-2"} ${
               attackMode && attackingZone !== null && isBottomActive && !topPlayer.monsterZones.some((m) => m !== null)
                 ? "cursor-pointer hover:bg-slate-700 ring-2 ring-amber-500"
                 : ""
@@ -1215,10 +1247,10 @@ function GameBoardInner({
                 : undefined
             }
           >
-            <span className="font-bold text-amber-400">{topPlayerId === "player2" && vsAI ? "AI" : topPlayerId === "player1" ? "玩家 1" : "玩家 2"}</span>
-            <span className="ml-2 text-xl font-bold text-red-500">{topPlayer.lp}</span>
+            <span className={`font-bold text-amber-400 ${mobileLayout ? "text-xs" : ""}`}>{topPlayerId === "player2" && vsAI ? "AI" : topPlayerId === "player1" ? "玩家 1" : "玩家 2"}</span>
+            <span className={`ml-1 font-bold text-red-500 ${mobileLayout ? "text-base" : "ml-2 text-xl"}`}>{topPlayer.lp}</span>
           </div>
-          <DeckGraveyardRow player={topPlayer} onGraveyardClick={() => handleGraveyardClick(topPlayerId)} compact />
+          <DeckGraveyardRow player={topPlayer} onGraveyardClick={() => handleGraveyardClick(topPlayerId)} compact={mobileLayout} />
         </div>
 
         <PlayerArea
@@ -1283,11 +1315,11 @@ function GameBoardInner({
         onSpellTrapZoneDrop={isBottomActive ? handleSpellTrapZoneDrop : undefined}
       />
 
-        <div className="absolute bottom-0 left-4 z-10 flex flex-col gap-1 items-start">
-          <DeckGraveyardRow player={bottomPlayer} onGraveyardClick={() => handleGraveyardClick(bottomPlayerId)} compact />
-          <div className="px-4 py-2 bg-slate-800 rounded-lg">
-            <span className="font-bold text-amber-400">{(vsAI && bottomPlayerId === "player1") || (!vsAI && currentPlayerId === bottomPlayerId) ? "你" : bottomPlayerId === "player1" ? "玩家 1" : "玩家 2"}</span>
-            <span className="ml-2 text-xl font-bold text-red-500">{bottomPlayer.lp}</span>
+        <div className={`absolute z-10 flex flex-col items-start ${mobileLayout ? "bottom-24 left-0 px-1 gap-0.5" : "bottom-0 left-4 gap-1"}`}>
+          <DeckGraveyardRow player={bottomPlayer} onGraveyardClick={() => handleGraveyardClick(bottomPlayerId)} compact={mobileLayout} />
+          <div className={`bg-slate-800 rounded-lg ${mobileLayout ? "px-2 py-1" : "px-4 py-2"}`}>
+            <span className={`font-bold text-amber-400 ${mobileLayout ? "text-xs" : ""}`}>{(vsAI && bottomPlayerId === "player1") || (!vsAI && currentPlayerId === bottomPlayerId) ? "你" : bottomPlayerId === "player1" ? "玩家 1" : "玩家 2"}</span>
+            <span className={`font-bold text-red-500 ${mobileLayout ? "ml-1 text-base" : "ml-2 text-xl"}`}>{bottomPlayer.lp}</span>
           </div>
         </div>
       </div>

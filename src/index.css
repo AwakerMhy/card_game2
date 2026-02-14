@@ -67,14 +67,27 @@ body {
   animation: damageFlash 0.8s ease-out forwards;
 }
 
-/* 适配移动端布局：场上弹窗最大宽度、增大可点区域 */
+/* 适配移动端竖屏布局 */
+.game-mobile {
+  padding: 0;
+  padding-top: env(safe-area-inset-top);
+  padding-bottom: env(safe-area-inset-bottom);
+  padding-left: env(safe-area-inset-left);
+  padding-right: env(safe-area-inset-right);
+}
 .game-mobile .field-popup {
   max-width: calc(100vw - 1rem);
 }
 .game-mobile button {
   touch-action: manipulation;
-  min-height: 2.25rem;
+  min-height: 2rem;
+  -webkit-tap-highlight-color: transparent;
 }
 .game-mobile label {
   touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+/* 竖屏手机：防止横向滚动 */
+.game-mobile {
+  overflow-x: hidden;
 }

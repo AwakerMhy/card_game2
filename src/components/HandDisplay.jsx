@@ -10,12 +10,12 @@ export default function HandDisplay({
   compact = false,
 }) {
   return (
-    <div className="flex gap-0.5 justify-center items-end min-h-[108px] py-0.5 overflow-x-auto">
+    <div className={`flex gap-0.5 justify-center items-end py-0.5 overflow-x-auto ${compact ? "min-h-[64px]" : "min-h-[108px]"}`}>
       {cards.map((card) => (
         <Card
           key={card.instanceId}
           card={card}
-          size={compact ? "sm" : "md"}
+          size={compact ? "xs" : "md"}
           onClick={() => onCardClick && onCardClick(card)}
           onViewDetails={onViewDetails}
           selected={selectedCard?.instanceId === card.instanceId}

@@ -1,8 +1,14 @@
-export default function ActionLog({ entries = [], maxEntries = 16 }) {
+export default function ActionLog({ entries = [], maxEntries = 16, mobileLayout = false }) {
   const display = entries.slice(-maxEntries).reverse();
 
   return (
-    <div className="fixed bottom-2 right-2 w-56 max-h-48 overflow-auto bg-slate-800/95 rounded-lg border border-slate-600 shadow-lg z-40 text-xs">
+    <div
+      className={`fixed overflow-auto bg-slate-800/95 rounded-lg border border-slate-600 shadow-lg z-40 text-xs ${
+        mobileLayout
+          ? "bottom-2 left-2 right-2 w-auto max-h-24"
+          : "bottom-2 right-2 w-56 max-h-48"
+      }`}
+    >
       <div className="p-2 text-xs font-bold text-amber-400 border-b border-slate-600 sticky top-0 bg-slate-800">
         操作记录
       </div>
